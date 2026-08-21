@@ -1,0 +1,7 @@
+{
+  "name": "Shendam Connect",
+  "description": "Mobile app home screen for Shendam Connect with discovery, hotels, restaurants, tourist spots, interactive map, and business directory.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

@@ -89,3 +89,6 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
     </div>
   );
 };
+
+export default NotificationsModal;
+

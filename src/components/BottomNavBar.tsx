@@ -13,11 +13,13 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
   onSelectTab,
   savedCount = 0
 }) => {
+  if (activeTab === 'admin') return null;
+
   return (
     <nav
       id="shendam-bottom-nav"
       style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0px))' }}
-      className="fixed bottom-0 inset-x-0 w-full z-40 bg-[#04142F]/95 backdrop-blur-lg border-t border-white/16 px-3 sm:px-4 pt-2 flex flex-col items-center select-none shadow-[0_-8px_30px_rgba(0,0,0,0.65)]"
+      className="fixed bottom-0 inset-x-0 w-full z-40 bg-[#04142F]/95 backdrop-blur-lg border-t border-white/16 px-3 sm:px-4 pt-2 flex flex-col items-center select-none shadow-[0_-8px_30px_rgba(0,0,0,0.65)] bottom-nav-container"
     >
       <div className="w-full grid grid-cols-5 items-end justify-items-center max-w-md mx-auto">
         {/* Tab 1: Home */}

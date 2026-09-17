@@ -21,6 +21,10 @@ export const PopularNearYou: React.FC<PopularNearYouProps> = ({
   // Show popular places from data
   const popularPlaces = places.slice(0, 4);
 
+  if (popularPlaces.length === 0) {
+    return null;
+  }
+
   return (
     <div className="w-full mt-6 z-10">
       {/* Header with Title and "See All" */}
@@ -82,8 +86,14 @@ export const PopularNearYou: React.FC<PopularNearYouProps> = ({
                   </span>
 
                   <div className="flex items-center gap-1 font-semibold text-[#D5DCE8]">
-                    <span>{place.rating}</span>
-                    <Star className="w-3 h-3 text-[#FFC928] fill-[#FFC928]" />
+                    {place.rating && place.rating > 0 ? (
+                      <>
+                        <span>{place.rating}</span>
+                        <Star className="w-3 h-3 text-[#FFC928] fill-[#FFC928]" />
+                      </>
+                    ) : (
+                      <span className="text-[10px] text-[#9BAABD] font-normal">New</span>
+                    )}
                   </div>
                 </div>
               </div>

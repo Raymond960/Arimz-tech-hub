@@ -121,20 +121,20 @@ export const ShendamWeatherCard: React.FC = () => {
       <div 
         id="shendam-weather-pill"
         onClick={() => setExpanded(!expanded)}
-        className="w-full bg-[#0B2D5C]/80 hover:bg-[#0B2D5C] border border-white/16 hover:border-[#F5B800]/50 rounded-xl px-3 py-1.5 backdrop-blur-md shadow-sm transition-all duration-200 cursor-pointer flex flex-col gap-1 select-none"
+        className="weather-card-container w-full bg-[#0B2D5C]/80 hover:bg-[#0B2D5C] border border-white/16 hover:border-[#F5B800]/50 rounded-xl px-3 py-1.5 backdrop-blur-md shadow-sm transition-all duration-200 cursor-pointer flex flex-col gap-1 select-none"
       >
         <div className="flex items-center justify-between">
           {/* Left: Location & Icon */}
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-full bg-[#08254D] border border-[#F5B800]/30 flex items-center justify-center">
+            <div className="weather-icon-circle w-6 h-6 rounded-full bg-[#08254D] border border-[#F5B800]/30 flex items-center justify-center">
               {getWeatherIcon(weather.code)}
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-bold text-white tracking-wide">
+              <span className="weather-city-text text-[11px] font-bold text-white tracking-wide">
                 Shendam
               </span>
               <span className="text-[10px] text-[#9BAABD]">•</span>
-              <span className="text-[11px] font-medium text-[#D5DCE8]">
+              <span className="weather-condition-text text-[11px] font-medium text-[#D5DCE8]">
                 {weather.condition}
               </span>
             </div>
@@ -142,23 +142,23 @@ export const ShendamWeatherCard: React.FC = () => {
 
           {/* Right: Temperature & Expand Icon */}
           <div className="flex items-center gap-2">
-            <span className="text-xs font-black text-[#FFC928] tracking-tight">
+            <span className="weather-temp-text text-xs font-black text-[#FFC928] tracking-tight">
               {weather.temp}°C
             </span>
-            <ChevronDown className={`w-3.5 h-3.5 text-[#9BAABD] transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
+            <ChevronDown className={`weather-chevron w-3.5 h-3.5 text-[#9BAABD] transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
           </div>
         </div>
 
         {/* Expanded Details on Click */}
         {expanded && (
-          <div className="pt-2 pb-1 border-t border-white/16 flex items-center justify-between text-[10px] text-[#9BAABD] animate-in fade-in duration-150">
+          <div className="weather-details-text pt-2 pb-1 border-t border-white/16 flex items-center justify-between text-[10px] text-[#9BAABD] animate-in fade-in duration-150">
             <div className="flex items-center gap-1">
               <Droplets className="w-3 h-3 text-[#38BDF8]" />
-              <span>Humidity: <strong className="text-white">{weather.humidity}%</strong></span>
+              <span>Humidity: <strong className="weather-details-strong text-white">{weather.humidity}%</strong></span>
             </div>
             <div className="flex items-center gap-1">
               <Wind className="w-3 h-3 text-[#D5DCE8]" />
-              <span>Wind: <strong className="text-white">{weather.windSpeed} km/h</strong></span>
+              <span>Wind: <strong className="weather-details-strong text-white">{weather.windSpeed} km/h</strong></span>
             </div>
             <button
               onClick={(e) => {
@@ -166,7 +166,7 @@ export const ShendamWeatherCard: React.FC = () => {
                 fetchWeather(true);
               }}
               disabled={loading}
-              className="flex items-center gap-1 text-[#FFC928] hover:text-white transition cursor-pointer"
+              className="flex items-center gap-1 text-[#FFC928] hover:text-[#0B4B8A] transition cursor-pointer font-bold"
             >
               <RefreshCw className={`w-2.5 h-2.5 ${loading ? 'animate-spin' : ''}`} />
               <span>Update</span>

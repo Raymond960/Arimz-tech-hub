@@ -58,3 +58,460 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* ==========================================================================
+   ☀️ LIGHT MODE OVERRIDES - Official Context-Aware Theme Palette
+   ========================================================================== */
+
+/* Root & Body background in Light Mode */
+.light-mode,
+.light-mode body {
+  background-color: #F7F9FC !important;
+  color: #071B3A !important;
+}
+
+/* Header & Network Banner in Light Mode - retains network identity with brand blue depth */
+.light-mode .shendam-bg-pattern {
+  background-color: #0B4B8A !important;
+  background-image: 
+    radial-gradient(circle at 50% 0%, rgba(245, 196, 0, 0.28) 0%, transparent 60%),
+    radial-gradient(circle at 15% 45%, rgba(255, 255, 255, 0.18) 0%, transparent 45%),
+    radial-gradient(circle at 85% 75%, rgba(11, 75, 138, 0.2) 0%, transparent 45%) !important;
+}
+
+/* Header Controls & Branding in Light Mode - High Contrast Pure White & Gold over Royal Blue Header */
+.light-mode header,
+.light-mode header .text-white,
+.light-mode header .text-\[\#D5DCE8\] {
+  color: #FFFFFF !important;
+}
+
+.light-mode header .text-\[\#FFC928\] {
+  color: #FFC928 !important;
+}
+
+/* Hamburger Menu Icon ☰ in Light Mode */
+.light-mode header button[aria-label="Open navigation menu"] {
+  color: #FFFFFF !important;
+  background-color: rgba(255, 255, 255, 0.18) !important;
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12) !important;
+}
+
+.light-mode header button[aria-label="Open navigation menu"]:hover {
+  background-color: rgba(255, 255, 255, 0.3) !important;
+  color: #FFC928 !important;
+}
+
+/* Notification Bell in Light Mode */
+.light-mode header button[aria-label="View notifications"] {
+  color: #FFFFFF !important;
+  background-color: rgba(255, 255, 255, 0.18) !important;
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+}
+
+/* Promo / Hero Carousel: Preserved Crisp White & Gold Text Over Dark Image Overlay */
+.light-mode .hero-carousel-container,
+.light-mode .hero-carousel-container .text-white {
+  color: #FFFFFF !important;
+}
+
+.light-mode .hero-carousel-container .text-\[\#D5DCE8\] {
+  color: #D5DCE8 !important;
+}
+
+.light-mode .hero-carousel-container .text-\[\#FFC928\],
+.light-mode .hero-carousel-container .font-script {
+  color: #FFC928 !important;
+}
+
+.light-mode .hero-carousel-container button {
+  color: #061B3A !important;
+}
+
+/* Weather Card in Light Mode */
+.light-mode .weather-card-container {
+  background-color: #FFFFFF !important;
+  border-color: #D8E1EC !important;
+  box-shadow: 0 4px 16px rgba(7, 27, 58, 0.06) !important;
+}
+
+.light-mode .weather-card-container .weather-icon-circle {
+  background-color: #EEF3F8 !important;
+  border-color: rgba(245, 196, 0, 0.5) !important;
+}
+
+.light-mode .weather-card-container .weather-city-text {
+  color: #071B3A !important;
+}
+
+.light-mode .weather-card-container .weather-condition-text {
+  color: #0B4B8A !important;
+}
+
+.light-mode .weather-card-container .weather-temp-text {
+  color: #B28300 !important;
+}
+
+.light-mode .weather-card-container .weather-chevron {
+  color: #071B3A !important;
+}
+
+.light-mode .weather-card-container .weather-details-text {
+  color: #5F6B7A !important;
+  border-top-color: #D8E1EC !important;
+}
+
+.light-mode .weather-card-container .weather-details-strong {
+  color: #071B3A !important;
+}
+
+/* Primary Cards & Surface Containers in Light Mode */
+.light-mode .bg-\[\#0B2D5C\],
+.light-mode .bg-\[\#08254D\],
+.light-mode .bg-\[\#08224D\],
+.light-mode .bg-\[\#04142F\],
+.light-mode .bg-\[\#061B3A\] {
+  background-color: #FFFFFF !important;
+  color: #071B3A !important;
+  border-color: #D8E1EC !important;
+  box-shadow: 0 4px 16px -2px rgba(7, 27, 58, 0.06) !important;
+}
+
+/* ==========================================================================
+   🏛️ SIDE MENU DRAWER - LIGHT MODE CONTRAST FIX
+   ========================================================================== */
+
+.light-mode .side-menu-drawer {
+  background-color: #FFFFFF !important;
+  color: #0B1F3A !important;
+  border-right: 1px solid #D8E1EC !important;
+  box-shadow: 12px 0 36px rgba(7, 27, 58, 0.15) !important;
+}
+
+.light-mode .side-menu-header {
+  border-bottom-color: #D8E1EC !important;
+}
+
+.light-mode .side-menu-title {
+  color: #0B1F3A !important;
+}
+
+.light-mode .side-menu-close-btn {
+  background-color: #EEF3F8 !important;
+  color: #0B1F3A !important;
+  border: 1px solid #D8E1EC !important;
+}
+
+.light-mode .side-menu-close-btn:hover {
+  background-color: #D8E1EC !important;
+  color: #0B4B8A !important;
+}
+
+.light-mode .side-menu-nav-link {
+  color: #0B1F3A !important;
+  font-weight: 700 !important;
+}
+
+.light-mode .side-menu-nav-link:hover {
+  background-color: #EEF3F8 !important;
+  color: #0B4B8A !important;
+}
+
+.light-mode .side-menu-nav-icon {
+  color: #F5C400 !important;
+}
+
+.light-mode .side-menu-saved-badge {
+  background-color: #F5C400 !important;
+  color: #061B3A !important;
+  font-weight: 800 !important;
+}
+
+.light-mode .side-menu-admin-btn {
+  background-color: #EEF3F8 !important;
+  border-color: #D8E1EC !important;
+  color: #0B1F3A !important;
+}
+
+.light-mode .side-menu-admin-btn:hover {
+  background-color: #E2EBF4 !important;
+  border-color: #0B4B8A !important;
+}
+
+.light-mode .side-menu-admin-title {
+  color: #0B1F3A !important;
+  font-weight: 800 !important;
+}
+
+.light-mode .side-menu-lga-badge {
+  background-color: #F5C400 !important;
+  color: #061B3A !important;
+  font-weight: 900 !important;
+  border: 1px solid rgba(6, 27, 58, 0.12) !important;
+}
+
+.light-mode .side-drawer-theme-card {
+  background-color: #EEF3F8 !important;
+  border-color: #D8E1EC !important;
+}
+
+.light-mode .side-drawer-theme-label {
+  color: #5F6B7A !important;
+}
+
+.light-mode .side-drawer-theme-val {
+  color: #0B1F3A !important;
+  font-weight: 700 !important;
+}
+
+.light-mode .side-drawer-theme-btn {
+  background-color: #FFFFFF !important;
+  color: #0B1F3A !important;
+  border: 1px solid #D8E1EC !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
+}
+
+.light-mode .side-drawer-theme-btn:hover {
+  background-color: #EEF3F8 !important;
+  color: #0B4B8A !important;
+}
+
+.light-mode .side-menu-biz-card {
+  background-color: #EEF3F8 !important;
+  border-color: #D8E1EC !important;
+  box-shadow: 0 4px 12px rgba(7, 27, 58, 0.04) !important;
+}
+
+.light-mode .side-menu-biz-title {
+  color: #0B4B8A !important;
+  font-weight: 800 !important;
+}
+
+.light-mode .side-menu-biz-desc {
+  color: #5F6B7A !important;
+  font-weight: 500 !important;
+}
+
+.light-mode .side-menu-biz-btn {
+  background-color: #F5C400 !important;
+  color: #061B3A !important;
+  font-weight: 800 !important;
+  box-shadow: 0 2px 8px rgba(245, 196, 0, 0.3) !important;
+}
+
+.light-mode .side-menu-biz-btn:hover {
+  background-color: #E0B300 !important;
+}
+
+.light-mode .side-menu-footer {
+  border-top-color: #D8E1EC !important;
+}
+
+.light-mode .side-menu-footer-gov {
+  color: #0B1F3A !important;
+  font-weight: 700 !important;
+}
+
+.light-mode .side-menu-footer-sub {
+  color: #5F6B7A !important;
+}
+
+.light-mode .side-menu-footer-slogan {
+  color: #B28300 !important;
+  font-weight: 700 !important;
+}
+
+/* Modal backgrounds & Drawers in Light Mode */
+.light-mode .bg-\[\#04142F\]\/95,
+.light-mode .bg-\[\#04142F\]\/80,
+.light-mode .bg-\[\#08224D\]\/90,
+.light-mode .bg-\[\#08254D\]\/80 {
+  background-color: rgba(255, 255, 255, 0.96) !important;
+  border-color: #D8E1EC !important;
+  color: #071B3A !important;
+}
+
+/* Secondary Surface Containers in Light Mode */
+.light-mode .bg-white\/5,
+.light-mode .bg-white\/8,
+.light-mode .bg-white\/10,
+.light-mode .bg-white\/12,
+.light-mode .bg-white\/16,
+.light-mode .bg-white\/20 {
+  background-color: #EEF3F8 !important;
+  color: #071B3A !important;
+  border-color: #D8E1EC !important;
+}
+
+/* Section Headings in Light Mode */
+.light-mode h2.text-white,
+.light-mode h3.text-white,
+.light-mode h4.text-white {
+  color: #071B3A !important;
+}
+
+/* Text Colors inside Light Mode Cards */
+.light-mode .bg-\[\#0B2D5C\] h4,
+.light-mode .bg-\[\#0B2D5C\] .text-white,
+.light-mode .bg-\[\#08254D\] .text-white {
+  color: #071B3A !important;
+}
+
+.light-mode .bg-\[\#0B2D5C\] .text-\[\#9BAABD\],
+.light-mode .bg-\[\#0B2D5C\] .text-\[\#D5DCE8\],
+.light-mode .bg-\[\#08254D\] .text-\[\#9BAABD\],
+.light-mode .bg-\[\#08254D\] .text-\[\#D5DCE8\] {
+  color: #5F6B7A !important;
+}
+
+/* Form Inputs, Selects & Search Bars in Light Mode */
+.light-mode input:not([type="checkbox"]):not([type="radio"]),
+.light-mode select,
+.light-mode textarea {
+  background-color: #FFFFFF !important;
+  color: #071B3A !important;
+  border-color: #D8E1EC !important;
+}
+
+.light-mode input::placeholder,
+.light-mode textarea::placeholder {
+  color: #8C9BAE !important;
+}
+
+/* Keep Gold Accents Vibrant in Light Mode */
+.light-mode .text-\[\#FFC928\] {
+  color: #B28300 !important;
+}
+
+.light-mode .bg-\[\#FFC928\] {
+  background-color: #F5C400 !important;
+  color: #061B3A !important;
+}
+
+.light-mode .bg-\[\#FFC928\]\/20,
+.light-mode .bg-\[\#FFC928\]\/10 {
+  background-color: rgba(245, 196, 0, 0.16) !important;
+  border-color: rgba(245, 196, 0, 0.35) !important;
+  color: #856100 !important;
+}
+
+/* Bottom Nav Bar in Light Mode */
+.light-mode .bottom-nav-container {
+  background-color: #FFFFFF !important;
+  border-top-color: #D8E1EC !important;
+  box-shadow: 0 -4px 20px rgba(7, 27, 58, 0.08) !important;
+}
+
+/* Category Buttons & Chips in Light Mode */
+.light-mode .category-chip-active {
+  background-color: #0B4B8A !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 4px 12px rgba(11, 75, 138, 0.25) !important;
+}
+
+.light-mode .category-chip-inactive {
+  background-color: #FFFFFF !important;
+  color: #071B3A !important;
+  border-color: #D8E1EC !important;
+}
+
+/* Toggle Box styling */
+.light-mode .dark-toggle-container {
+  background-color: #EEF3F8 !important;
+  border-color: #D8E1EC !important;
+}
+
+.light-mode .light-theme-toggle-box {
+  background-color: #EEF3F8 !important;
+  border-color: #D8E1EC !important;
+}
+
+/* Opportunity Status Badges & Hero Banner Cards */
+.banner-container { 
+  position: relative; 
+  margin: 16px; 
+  border-radius: 16px; 
+  overflow: hidden; 
+}
+
+.banner-card {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.banner-slide { 
+  position: relative; 
+  cursor: pointer; 
+}
+
+.banner-slide img { 
+  width: 100%; 
+  height: 200px; 
+  object-fit: cover; 
+}
+
+.badge-upcoming {
+  position: absolute; 
+  top: 12px; 
+  left: 12px;
+  background: #FF9500; 
+  color: white;
+  padding: 6px 12px; 
+  border-radius: 20px;
+  font-weight: bold; 
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  line-height: 1;
+  z-index: 10;
+}
+
+.banner-text {
+  position: absolute; 
+  bottom: 0; 
+  left: 0; 
+  right: 0;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+  color: white; 
+  padding: 20px;
+}
+
+.dots { 
+  display: flex; 
+  justify-content: center; 
+  gap: 8px; 
+  margin-top: 8px; 
+}
+
+.dot { 
+  width: 8px; 
+  height: 8px; 
+  border-radius: 50%; 
+  background: gray; 
+  cursor: pointer; 
+  transition: all 0.2s ease-in-out;
+}
+
+.dot.active { 
+  background: #FF9500; 
+  width: 20px; 
+  border-radius: 10px; 
+}
+
+.badge-active {
+  background-color: #10B981; /* green */
+  color: #FFFFFF;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  line-height: 1;
+}
+
+

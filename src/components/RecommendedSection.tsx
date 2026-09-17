@@ -22,6 +22,10 @@ export const RecommendedSection: React.FC<RecommendedSectionProps> = ({
   const recommendedList = places.filter(p => !p.popular || p.featured).slice(0, 6);
   const displayPlaces = recommendedList.length >= 3 ? recommendedList : places.slice(0, 6);
 
+  if (displayPlaces.length === 0) {
+    return null;
+  }
+
   return (
     <section className="w-full mt-7 mb-6 z-10">
       {/* Header */}
@@ -105,11 +109,17 @@ export const RecommendedSection: React.FC<RecommendedSectionProps> = ({
 
                 <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/10">
                   <div className="flex items-center gap-1 text-[11px] font-semibold text-white">
-                    <Star className="w-3 h-3 fill-[#FFC928] text-[#FFC928]" />
-                    <span>{place.rating}</span>
-                    <span className="text-[9px] text-[#9BAABD] font-normal">
-                      ({place.reviewsCount || 0})
-                    </span>
+                    {place.rating && place.rating > 0 ? (
+                      <>
+                        <Star className="w-3 h-3 fill-[#FFC928] text-[#FFC928]" />
+                        <span>{place.rating}</span>
+                        <span className="text-[9px] text-[#9BAABD] font-normal">
+                          ({place.reviewsCount || 0})
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-[10px] text-[#9BAABD] font-normal">No reviews yet</span>
+                    )}
                   </div>
 
                   {place.priceRange && (

@@ -22,7 +22,7 @@ export const HeroCarousel: React.FC<HeroCarouselProps> = ({ slides, onExplore })
   const slide = slides[currentSlide] || slides[0];
 
   return (
-    <div className="w-full px-4 sm:px-5 mt-5 z-10">
+    <div className="w-full px-4 sm:px-5 mt-5 z-10 hero-carousel-container">
       <div className="relative w-full h-52 sm:h-64 rounded-2xl sm:rounded-3xl overflow-hidden border border-white/16 shadow-[0_8px_30px_rgba(0,0,0,0.45)] group">
         {/* Optimized Background Image */}
         <LazyImage

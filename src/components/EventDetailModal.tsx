@@ -148,3 +148,6 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
     </div>
   );
 };
+
+export default EventDetailModal;
+

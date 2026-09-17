@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
+import { ImageOff, Building2 } from 'lucide-react';
 
 /**
  * Image Optimizer Utility for Shendam Connect
  * Converts remote images (Unsplash) to optimized WebP format with target widths
  */
 export function getOptimizedImageUrl(url: string, width: number = 600, quality: number = 75): string {
-  if (!url) return 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=600&q=75&fm=webp';
+  if (!url) return '';
   
   if (url.includes('images.unsplash.com')) {
     try {
@@ -24,7 +25,7 @@ export function getOptimizedImageUrl(url: string, width: number = 600, quality: 
 }
 
 interface LazyImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
-  src: string;
+  src?: string;
   alt: string;
   widthParam?: number;
   qualityParam?: number;
@@ -34,6 +35,7 @@ interface LazyImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
 
 /**
  * High-performance Lazy Loaded Image component with Skeleton Shimmer Placeholder
+ * Displays a clean, neutral "No Image Available" placeholder when image is absent or errors
  */
 export const LazyImage: React.FC<LazyImageProps> = ({
   src,
@@ -47,9 +49,41 @@ export const LazyImage: React.FC<LazyImageProps> = ({
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
 
-  const optimizedSrc = error
-    ? 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=600&q=75&fm=webp'
-    : getOptimizedImageUrl(src, widthParam, qualityParam);
+  if (!src || !src.trim()) {
+    return (
+      <div 
+        role="img"
+        aria-label={`No image available for ${alt}`}
+        className={`relative overflow-hidden bg-gradient-to-br from-[#08254D] to-[#0B2D5C] flex flex-col items-center justify-center text-center p-2 border border-white/5 select-none ${wrapperClassName || 'w-full h-full'}`}
+      >
+        <div className="w-8 h-8 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-[#9BAABD] mb-1">
+          <Building2 className="w-4 h-4 opacity-70" />
+        </div>
+        <span className="text-[9px] text-[#9BAABD]/80 font-medium tracking-wide">
+          No Image Available
+        </span>
+      </div>
+    );
+  }
+
+  const optimizedSrc = error ? '' : getOptimizedImageUrl(src, widthParam, qualityParam);
+
+  if (error || !optimizedSrc) {
+    return (
+      <div 
+        role="img"
+        aria-label={`No image available for ${alt}`}
+        className={`relative overflow-hidden bg-gradient-to-br from-[#08254D] to-[#0B2D5C] flex flex-col items-center justify-center text-center p-2 border border-white/5 select-none ${wrapperClassName || 'w-full h-full'}`}
+      >
+        <div className="w-8 h-8 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-[#9BAABD] mb-1">
+          <ImageOff className="w-4 h-4 opacity-70" />
+        </div>
+        <span className="text-[9px] text-[#9BAABD]/80 font-medium tracking-wide">
+          No Image Available
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div className={`relative overflow-hidden ${wrapperClassName || 'w-full h-full'}`}>

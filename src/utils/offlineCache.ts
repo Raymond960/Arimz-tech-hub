@@ -34,18 +34,32 @@ export function registerServiceWorker(): void {
 export function cachePlacesLocally(places: Place[], savedIds: string[]): void {
   try {
     if (typeof window === 'undefined') return;
-    localStorage.setItem(PLACES_CACHE_KEY, JSON.stringify(places));
-    localStorage.setItem(SAVED_IDS_CACHE_KEY, JSON.stringify(savedIds));
-    localStorage.setItem(LAST_SYNC_KEY, new Date().toISOString());
+    // Strip base64 data URIs before storing in localStorage to conserve quota
+    const sanitizedPlaces = places.map((p) => ({
+      ...p,
+      image: p.image?.startsWith('data:') ? '' : p.image,
+      logo: p.logo?.startsWith('data:') ? '' : p.logo,
+      gallery: (p.gallery || []).filter((g) => !g.startsWith('data:'))
+    }));
+
+    try {
+      localStorage.setItem(PLACES_CACHE_KEY, JSON.stringify(sanitizedPlaces));
+      localStorage.setItem(SAVED_IDS_CACHE_KEY, JSON.stringify(savedIds));
+      localStorage.setItem(LAST_SYNC_KEY, new Date().toISOString());
+    } catch (storageErr) {
+      console.warn('[Shendam Connect] LocalStorage quota limit reached during offline cache sync:', storageErr);
+    }
 
     // Pre-cache images via Service Worker / CacheStorage
-    const savedPlaces = places.filter((p) => savedIds.includes(p.id));
+    const savedPlaces = sanitizedPlaces.filter((p) => savedIds.includes(p.id));
     const imageUrlsToCache: string[] = [];
 
     savedPlaces.forEach((p) => {
-      if (p.image) imageUrlsToCache.push(p.image);
+      if (p.image && !p.image.startsWith('data:')) imageUrlsToCache.push(p.image);
       if (p.gallery && p.gallery.length > 0) {
-        imageUrlsToCache.push(...p.gallery);
+        p.gallery.forEach((url) => {
+          if (url && !url.startsWith('data:')) imageUrlsToCache.push(url);
+        });
       }
     });
 
@@ -103,8 +117,6 @@ export function useOnlineStatus() {
     return true;
   });
 
-  const [simulatedOffline, setSimulatedOffline] = useState(false);
-
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
@@ -119,8 +131,8 @@ export function useOnlineStatus() {
   }, []);
 
   return {
-    isOnline: simulatedOffline ? false : isOnline,
-    simulatedOffline,
-    toggleSimulateOffline: () => setSimulatedOffline((prev) => !prev)
+    isOnline,
+    simulatedOffline: false,
+    toggleSimulateOffline: () => {}
   };
 }

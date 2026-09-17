@@ -34,15 +34,13 @@ export const SavedView: React.FC<SavedViewProps> = ({
           </p>
         </div>
 
-        {/* Offline Simulation / Status Button */}
-        <button
-          onClick={toggleSimulateOffline}
-          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition cursor-pointer ${
+        {/* Connection Status Badge */}
+        <div
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold select-none ${
             !isOnline
-              ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm'
-              : 'bg-[#0B2D5C] text-[#D5DCE8] border-white/16 hover:border-[#FFC928]/40'
+              ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+              : 'bg-[#0B2D5C] text-[#D5DCE8] border-white/16'
           }`}
-          title={simulatedOffline ? 'Click to restore online mode' : 'Test offline mode'}
         >
           {!isOnline ? (
             <>
@@ -55,7 +53,7 @@ export const SavedView: React.FC<SavedViewProps> = ({
               <span>Offline Ready</span>
             </>
           )}
-        </button>
+        </div>
       </div>
 
       {/* Offline Status Info Banner */}
@@ -134,9 +132,9 @@ export const SavedView: React.FC<SavedViewProps> = ({
           <div className="w-14 h-14 rounded-full bg-[#08254D] text-[#FFC928] flex items-center justify-center mx-auto text-2xl">
             🔖
           </div>
-          <h4 className="font-bold text-base text-white">No Saved Places Yet</h4>
+          <h4 className="font-bold text-base text-white">No saved places yet</h4>
           <p className="text-xs text-[#9BAABD] max-w-xs mx-auto">
-            Tap the bookmark ribbon on any hotel, restaurant, or tourist spot in Shendam to save it for offline browsing.
+            Save hotels, businesses, restaurants and attractions to find them here.
           </p>
           <button
             onClick={onExploreMore}

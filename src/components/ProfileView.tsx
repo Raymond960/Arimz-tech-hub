@@ -6,27 +6,40 @@ import {
   PlusCircle,
   Info,
   MapPin,
-  ExternalLink
+  ExternalLink,
+  MessageSquarePlus,
+  Moon,
+  Sun
 } from 'lucide-react';
 import shendamLogoImg from '../assets/shendam_logo.jpg';
+import { FeedbackType } from '../types';
+import { ThemeToggle } from './ThemeToggle';
+import { useAppBranding } from '../hooks/useAppBranding';
+import { BrandLogoImage } from './BrandLogoImage';
 
 interface ProfileViewProps {
   onOpenAddBusiness: () => void;
+  onOpenFeedback?: (initialType?: FeedbackType) => void;
   savedCount: number;
+  onOpenAdmin?: () => void;
 }
 
 export const ProfileView: React.FC<ProfileViewProps> = ({
   onOpenAddBusiness,
-  savedCount
+  onOpenFeedback,
+  savedCount,
+  onOpenAdmin
 }) => {
+  const { homepageLogo } = useAppBranding();
+
   return (
     <div className="w-full px-5 py-4 pb-28 space-y-4 animate-in fade-in duration-200">
       {/* Header Profile Card */}
       <div className="bg-gradient-to-br from-[#0B2D5C] to-[#08254D] border border-white/16 rounded-3xl p-5 shadow-xl relative overflow-hidden">
         <div className="relative z-10 flex items-center gap-4">
           <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-lg ring-2 ring-[#FFC928]/40 shrink-0 bg-[#04142F]">
-            <img
-              src={shendamLogoImg}
+            <BrandLogoImage
+              src={homepageLogo}
               alt="Shendam Connect"
               className="w-full h-full object-contain rounded-xl"
             />
@@ -42,6 +55,23 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               Headquarters of Plateau South Senatorial District
             </p>
           </div>
+        </div>
+      </div>
+
+      {/* App Theme Preference Segment Toggle */}
+      <div className="bg-[#0B2D5C] border border-white/16 rounded-2xl p-4 space-y-2">
+        <div className="flex items-center justify-between text-white font-bold text-sm">
+          <div className="flex items-center gap-2">
+            <Sun className="w-4 h-4 text-[#FFC928]" />
+            <span>App Theme Preference</span>
+          </div>
+          <span className="text-[10px] text-[#FFC928] font-bold uppercase">Appearance</span>
+        </div>
+        <p className="text-xs text-[#9BAABD]">
+          Switch between Light and Dark mode appearance.
+        </p>
+        <div className="pt-1">
+          <ThemeToggle variant="segmented" />
         </div>
       </div>
 
@@ -109,6 +139,28 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         <PlusCircle className="w-4 h-4" />
         <span>List Your Business on Shendam Connect</span>
       </button>
+
+      {/* Feedback & Feature Requests Button */}
+      {onOpenFeedback && (
+        <button
+          onClick={() => onOpenFeedback('feature_request')}
+          className="w-full py-3 bg-[#08254D] hover:bg-[#061D40] border border-white/16 text-white font-bold text-xs rounded-2xl flex items-center justify-center gap-2 transition cursor-pointer shadow-sm"
+        >
+          <MessageSquarePlus className="w-4 h-4 text-[#FFC928]" />
+          <span>Submit Feature Request or Report an Issue</span>
+        </button>
+      )}
+
+      {/* Admin Portal Button */}
+      {onOpenAdmin && (
+        <button
+          onClick={onOpenAdmin}
+          className="w-full py-3 bg-[#0B2D5C] hover:bg-[#08254D] border border-white/16 text-[#FFC928] font-bold text-xs rounded-2xl flex items-center justify-center gap-2 transition cursor-pointer"
+        >
+          <ShieldCheck className="w-4 h-4 text-[#FFC928]" />
+          <span>LGA Management & Admin Portal</span>
+        </button>
+      )}
 
       {/* App Info */}
       <div className="text-center pt-2 text-[11px] text-[#9BAABD]">

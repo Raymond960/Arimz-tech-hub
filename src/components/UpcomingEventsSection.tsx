@@ -14,6 +14,10 @@ export const UpcomingEventsSection: React.FC<UpcomingEventsSectionProps> = ({
   onSelectEvent,
   onSeeAllEvents
 }) => {
+  if (!events || events.length === 0) {
+    return null;
+  }
+
   return (
     <section className="w-full mt-7 z-10">
       {/* Header with Title & See All */}

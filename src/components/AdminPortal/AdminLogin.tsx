@@ -30,9 +30,30 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBackTo
         body: JSON.stringify({ email: email.trim(), password })
       });
 
-      const data = await res.json();
+      const contentType = res.headers.get('content-type') || '';
+      let data: any = {};
+
+      if (contentType.includes('application/json')) {
+        data = await res.json().catch(() => ({}));
+      } else {
+        const text = await res.text().catch(() => '');
+        if (!res.ok) {
+          if (res.status === 404) {
+            throw new Error('Admin API endpoint is currently unreachable. Please verify server routing or retry.');
+          }
+          if (res.status === 502 || res.status === 503 || res.status === 504) {
+            throw new Error('Authentication service is temporarily unavailable. Please try again in a moment.');
+          }
+          throw new Error(text && text.length < 120 ? text : 'Unexpected server response received during login.');
+        }
+      }
+
       if (!res.ok) {
-        throw new Error(data.message || 'Authentication failed. Unauthorized access.');
+        throw new Error(data.message || data.error || 'Authentication failed. Please verify email and password.');
+      }
+
+      if (!data.token || !data.admin) {
+        throw new Error('Invalid authentication response structure from server.');
       }
 
       onLoginSuccess(data.token, data.admin);

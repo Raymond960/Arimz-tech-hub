@@ -5,7 +5,11 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/server.ts"
+      "destination": "/api"
+    },
+    {
+      "source": "/((?!api|uploads|assets|favicon|manifest|sw\\.js|icon|logo|robots\\.txt|sitemap\\.xml).*)",
+      "destination": "/index.html"
     }
   ]
 }

@@ -4283,6 +4283,11 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 // 9. VITE SPA MIDDLEWARE FOR DEVELOPMENT & PRODUCTION
 // ============================================================================
 async function startServer() {
+  if (process.env.VERCEL) {
+    // In Vercel serverless environment, Vercel routes static files directly and handles serverless requests.
+    return;
+  }
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true, hmr: false },
@@ -4302,6 +4307,9 @@ async function startServer() {
   });
 }
 
-startServer();
+if (!process.env.VERCEL) {
+  startServer();
+}
 
 export default app;
+export { app };

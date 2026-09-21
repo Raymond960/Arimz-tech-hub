@@ -1,132 +1,186 @@
-# Shendam Connect - Smart Local Government Digital Directory & Tourism Platform
+Shendam Connect
 
-Shendam Connect is an all-in-one digital directory, hotel booking engine, and local tourism platform for **Shendam Local Government Area (LGA), Plateau State, Nigeria**. It features a comprehensive public web app, interactive business & attractions explorer, direct WhatsApp/Call integrations, a real-time guest booking workflow, and a fully integrated **Executive Admin Command Dashboard** (`/admin`).
+Connecting Shendam to the Digital World.
 
----
+Shendam Connect is a modern digital platform built to connect people with hotels, businesses, restaurants, attractions, services, opportunities, and other local resources in Shendam LGA, Plateau State, Nigeria.
 
-## 🌟 Application Features
+🌍 Features
 
-### Public Portal
-- **Interactive Directory**: Discover certified hotels, restaurants, healthcare services, markets, schools, transport parks, and cultural attractions in Shendam.
-- **Hotel Booking Engine**: Real-time room availability, live reservation requests, guest confirmation details, and direct contact options.
-- **Local Tourism & Culture**: Highlighting landmarks like Long Goemai Palace, Kwolla / Katsina Falls, Shimankar Beach, and cultural heritage sites.
-- **Privacy-First Live Tracking**: Client-side background heartbeat mechanism measuring active online visitors without harvesting private user data or IP addresses.
-- **PWA & Mobile-First**: Installable Progressive Web App with offline fallback support, fast mobile navigation, and responsive touch controls.
+- 🏨 Hotel and accommodation listings
+- 🏪 Local business directory
+- 🍽️ Restaurant listings
+- 📍 Interactive locations and maps
+- 🗺️ Google Maps directions
+- 📞 One-click business calling
+- 💬 WhatsApp contact
+- 🔎 Search and discovery
+- 📢 Announcements and promotions
+- 💼 Jobs and opportunities
+- 🖼️ Business image galleries
+- ⭐ Featured/promoted listings
+- 📱 Mobile-first interface
+- 🔐 Secure Admin Dashboard
+- 📊 Administrative management and analytics
 
-### Executive Admin Dashboard (`/admin`)
-- **Executive Security & Authentication**: Server-side JWT token verification with rate limiting, input validation, role checks, and password hashing.
-- **🟢 Live Users Tracker**: Real-time visitor presence updating every 60–90 seconds via an active heartbeat collector.
-- **Analytics & Traffic Insights**: Historical chart visualizations for Visitors Over Time (7/30 days), Page Views, Popular Hotels, Top Businesses, and Device Breakdowns (Mobile vs. Desktop vs. Tablet).
-- **Hotel Management (`/admin/hotels`)**: Add, edit, verify, feature, activate/deactivate, upload photos, and archive accommodations.
-- **Business Management (`/admin/businesses`)**: Manage commercial enterprises across Shendam LGA with contact numbers, WhatsApp links, categories, and coordinates.
-- **Attraction Management (`/admin/attractions`)**: Curate cultural heritage sites, historical monuments, natural landmarks, and coordinates.
-- **Booking Management (`/admin/bookings`)**: Comprehensive reservation ledger with instant status transitions (`Pending`, `Confirmed`, `Completed`, `Cancelled`), customer details, and room types.
-- **Audit Logs (`/admin/activity`)**: Immutable tracking of administrator actions (login, edits, status modifications, record creations).
-- **💰 Revenue & Finance Command**: Structured financial breakdown covering Booking Commissions (10%), Commercial Advertising, Sponsored Listings, Premium Merchant Accounts, and Pending Settlements with CSV ledger export.
-- **LGA Broadcast & Emergency Alerts**: Publish real-time announcements displayed as alert banners across the public portal.
+🛠️ Technology
 
----
+Shendam Connect is built with modern web technologies:
 
-## 🛠️ Technology Stack
+- React
+- Vite
+- TypeScript/JavaScript
+- Tailwind CSS
+- React Router
+- React Query
+- Node.js
+- Express.js
+- Prisma
+- Database-backed content management
+- Leaflet / OpenStreetMap
+- Capacitor for Android
+- Vercel
 
-- **Frontend**: React 18, TypeScript, Tailwind CSS, Lucide Icons, Canvas-based chart renderers, Motion UI transitions.
-- **Backend**: Node.js, Express, Vite middleware mode, crypto session generator.
-- **Database & Storage**: JSON file database (`/server/data/shendam_db.json`) with auto-seeding, data persistence, and index querying.
-- **Security**: Server-side token authorization (`Bearer JWT`), crypto password hashing, rate limiting, and sanitization.
+🔐 Admin Dashboard
 
----
+The Admin Dashboard provides centralized management of platform content.
 
-## 🔐 Admin Access & Production Authentication
+Administrators can manage:
 
-The private administration suite is located at:
-```
-/admin
-```
-or via the **Admin Portal** quick link in the site menu.
+- Hotels
+- Businesses
+- Restaurants
+- Attractions
+- Services
+- Opportunities
+- Locations
+- Images
+- Promotions
+- Announcements
+- Platform settings
+- Administrator accounts and permissions
 
-### Super Admin Account
-- **Initial Super Admin**: `domnanraymond9@gmail.com`
-- **Initial Setup Password**: `ShendamAdmin2026!` (configurable via `ADMIN_PASSWORD_HASH` / `ADMIN_PASSWORD` in production).
+Public listing information is intended to come from persistent backend/database data rather than hard-coded frontend content.
 
-Only whitelisted administrative accounts can access the `/admin` portal or query administrative endpoints. Ordinary public users are blocked with 401 Unauthorized errors and brute-force lockouts.
+📍 Location & Maps
 
----
+Listings can have their own:
 
-## ⚙️ Environment Variables
+- Address
+- Area
+- Landmark
+- LGA
+- State
+- Latitude
+- Longitude
+- Map location
 
-Copy the `.env.example` file to create your `.env` configuration:
+Users can open Get Directions to navigate to a listing through Google Maps.
 
-```env
-# Gemini API Key (Server-side AI capabilities)
-GEMINI_API_KEY=your_gemini_api_key_here
+🏨 Hotel Booking
 
-# App URL (Auto-injected in production)
-APP_URL=https://your-domain.com
+Shendam Connect supports hotel discovery and booking workflows.
 
-# Administrator Credentials
-ADMIN_EMAIL=domnanraymond9@gmail.com
-ADMIN_PASSWORD_HASH=ShendamAdmin2026!
+The platform can record booking information and payment-verification status while allowing customers to follow the payment method configured for the individual hotel.
 
-# JWT Token Secret
-JWT_SECRET=shendam_connect_secret_jwt_key_2026
+Additional online payment and revenue-sharing functionality may be introduced as the platform develops.
 
-# Session Settings
-ADMIN_SESSION_TTL_MS=86400000
-ACTIVE_USER_TIMEOUT_MS=90000
-```
+📢 Advertising
 
----
+The platform supports advertising and promotional functionality, including:
 
-## 🚀 Setup & Local Development
+- Featured listings
+- Sponsored businesses
+- Local business advertising
+- Google AdMob integration for supported mobile deployments
 
-1. **Install Dependencies**:
-   ```bash
-   npm install
-   ```
+Advertising can be enabled or disabled through the appropriate configuration.
 
-2. **Start Development Server**:
-   ```bash
-   npm run dev
-   ```
-   The application will boot at `http://localhost:3000`.
+📱 Android
 
-3. **Build for Production**:
-   ```bash
-   npm run build
-   ```
+Shendam Connect can be packaged as an Android application using Capacitor.
 
-4. **Start Production Server**:
-   ```bash
-   npm start
-   ```
+The project is designed with a mobile-first interface for users with different screen sizes and network conditions.
 
----
+🚀 Deployment
 
-## 📊 Analytics & Privacy Architecture
+The project can be deployed through:
 
-- **Session Handling**: Every visitor receives an anonymous, non-reversible session identifier (`anon-xxxxxx`) stored in `localStorage`.
-- **Heartbeat Engine**: The frontend client sends periodic lightweight beacons (`POST /api/analytics/heartbeat`) every 45 seconds to maintain active presence.
-- **Active User Calculation**: Visitors with a heartbeat within the last 90 seconds are counted as active online users. Inactive sessions automatically expire.
-- **Zero PII**: No IP addresses, device identifiers, or personal communications are ever captured or exposed.
+GitHub → Vercel
 
----
+Vercel is used for hosting the web application and production deployment.
 
-## 💰 Revenue Tracking Architecture
+Production environment variables must be configured in Vercel for services such as authentication, database access, email, storage, advertising, and other integrations.
 
-The revenue management layer records and tracks digital economy transactions across Shendam LGA:
-1. **Hotel Booking Commission (10%)**: Automatically calculated on settled room bookings.
-2. **Advertising**: Hero banner placements and promotional campaign sponsorships.
-3. **Sponsored Listings**: Priority search rankings and certified directory badges.
-4. **Premium Merchant Accounts**: Annual verified business subscriptions.
-5. **Ledger Export**: Administrators can export full audit trails as `.csv` spreadsheets.
+⚙️ Local Development
 
----
+Install dependencies:
 
-## 🚢 Deployment Guidelines
+npm install
 
-### Vercel / Node.js Containers / Cloud Run
-The application is structured for containerized Node.js and static bundle serving:
-1. Set the build command to `npm run build`.
-2. Set the start command to `npm start` (which executes `node dist/server.cjs`).
-3. Add the required environment variables (`ADMIN_EMAIL`, `ADMIN_PASSWORD_HASH`, `JWT_SECRET`).
-4. Ingress port is standard `3000`.
+Start the development server:
+
+npm run dev
+
+Create a production build:
+
+npm run build
+
+Preview the production build:
+
+npm run preview
+
+🔑 Environment Variables
+
+Sensitive credentials must be stored as environment variables.
+
+Example:
+
+DATABASE_URL=
+JWT_SECRET=
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+SMTP_HOST=
+SMTP_PORT=
+SMTP_USER=
+SMTP_PASS=
+EMAIL_FROM=
+PAYSTACK_SECRET_KEY=
+
+Never commit passwords, API secrets, Google App Passwords, private keys, or other credentials to GitHub.
+
+🔒 Security
+
+Security controls include protected authentication, administrator authorization, role-based permissions, protected API endpoints, private server data, secure environment variables, and controlled access to administrative functionality.
+
+Security-sensitive changes should be tested before production deployment.
+
+🎯 Vision
+
+Shendam Connect aims to provide Shendam with a centralized digital platform for:
+
+- Tourism
+- Hotels and accommodation
+- Local businesses
+- Restaurants
+- Services
+- Events and announcements
+- Jobs and opportunities
+- Business promotion
+- Digital discovery
+- Future booking and payment services
+
+The platform can eventually expand beyond Shendam LGA to support wider digital tourism and business discovery across Plateau State.
+
+👨‍💻 Developer
+
+Raymond Domnan
+
+Web Designer • Coder • AI Tools Specialist
+
+Shendam Connect
+
+«Connecting Shendam to the Digital World.»
+
+📄 Project Status
+
+Shendam Connect is an actively developed project. Features, integrations, business listings, and platform services may continue to evolve as the project moves through testing and production deployment.

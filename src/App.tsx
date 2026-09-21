@@ -5,13 +5,14 @@
 
 import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { Place, CategoryId, TabId, PlaceReview, NotificationItem, ShendamEvent, FeedbackType, Opportunity, PendingBusinessSubmission } from './types';
+import { Place, CategoryId, TabId, PlaceReview, NotificationItem, ShendamEvent, FeedbackType, Opportunity, PendingBusinessSubmission, HeroSlide } from './types';
 import { HERO_SLIDES, NOTIFICATIONS, SHENDAM_EVENTS, INITIAL_PENDING_SUBMISSIONS } from './data/mockData';
 import headerBg from './assets/images/shendam_network_lattice_exact_1787310319283.jpg';
 import { cachePlacesLocally } from './utils/offlineCache';
 import { initAnalyticsHeartbeat, trackPageView } from './utils/analytics';
 import { SplashScreen } from './components/SplashScreen';
 import { Header } from './components/Header';
+import { FestiveCelebrationBanner } from './components/FestiveCelebrationBanner';
 import { ShendamWeatherCard } from './components/ShendamWeatherCard';
 import { SearchBar } from './components/SearchBar';
 import { CategoryButtonsRow1 } from './components/CategoryButtonsRow1';
@@ -39,7 +40,8 @@ import { BookingModal } from './components/BookingModal';
 import { FeedbackModal } from './components/FeedbackModal';
 import { StartupAdModal } from './components/ads/StartupAdModal';
 import { LocalSponsoredAd } from './components/ads/LocalSponsoredAd';
-import { GoogleAdSlot } from './components/ads/GoogleAdSlot';
+import { GoogleAdMobNativeCard } from './components/ads/GoogleAdMobNativeCard';
+import { UserAuthModal } from './components/UserAuthModal';
 
 export default function App() {
   // Places state with local storage persistence (initialized from cache or empty until authoritative API loads)
@@ -49,7 +51,11 @@ export default function App() {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+          return parsed.map((p: Place) => ({
+            ...p,
+            image: p.image && (p.image.includes('unsplash.com') || p.image.includes('/images/paul_gsm_')) ? '' : (p.image || ''),
+            gallery: Array.isArray(p.gallery) ? p.gallery.filter((g: string) => g && !g.includes('unsplash.com') && !g.includes('/images/paul_gsm_')) : []
+          }));
         }
       } catch (e) {
         return [];
@@ -88,17 +94,46 @@ export default function App() {
   }, []);
 
   // Hero slides state with local storage persistence
-  const [heroSlides, setHeroSlides] = useState(() => {
+  const [heroSlides, setHeroSlides] = useState<HeroSlide[]>(() => {
     const saved = localStorage.getItem('shendam_hero_v2');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((s: HeroSlide) => ({
+            ...s,
+            image: s.image && s.image.includes('unsplash.com') ? '' : (s.image || '')
+          }));
+        }
       } catch (e) {
         return HERO_SLIDES;
       }
     }
     return HERO_SLIDES;
   });
+
+  // Fetch hero slides from server and listen for branding updates
+  useEffect(() => {
+    const fetchSlides = () => {
+      fetch('/api/hero-slides')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && Array.isArray(data.slides)) {
+            setHeroSlides(data.slides);
+            try {
+              localStorage.setItem('shendam_hero_v2', JSON.stringify(data.slides));
+            } catch {}
+          }
+        })
+        .catch((err) => console.warn('Could not load hero slides from server:', err));
+    };
+
+    fetchSlides();
+    window.addEventListener('sc-branding-updated', fetchSlides);
+    return () => {
+      window.removeEventListener('sc-branding-updated', fetchSlides);
+    };
+  }, []);
 
   // Pending Submissions queue state with local storage persistence
   const [pendingSubmissions, setPendingSubmissions] = useState(() => {
@@ -543,19 +578,27 @@ export default function App() {
               {/* Weather Indicator */}
               <ShendamWeatherCard />
 
+              {/* Festive / Seasonal Theme Banner (Shown during active festive campaigns) */}
+              <FestiveCelebrationBanner />
+
               {/* 3. QUICK CATEGORIES ROW 1 */}
               <CategoryButtonsRow1
                 selectedCategory={selectedCategory}
                 onSelectCategory={handleSelectCategoryFromHome}
               />
 
-              {/* 5. HERO BANNER / CAROUSEL */}
-              <HeroCarousel
-                slides={heroSlides}
-                onExplore={(target) => handleSelectCategoryFromHome(target || 'tourist_spots')}
+              {/* 4. GOOGLE ADMOB NATIVE ADVANCED AD (In Hero Position with Hero Fallback) */}
+              <GoogleAdMobNativeCard
+                placement="home"
+                fallback={
+                  <HeroCarousel
+                    slides={heroSlides}
+                    onExplore={(target) => handleSelectCategoryFromHome(target || 'tourist_spots')}
+                  />
+                }
               />
 
-              {/* 6. POPULAR NEAR YOU */}
+              {/* 5. POPULAR NEAR YOU */}
               <PopularNearYou
                 places={places}
                 savedPlaceIds={savedPlaceIds}
@@ -567,8 +610,8 @@ export default function App() {
                 }}
               />
 
-              {/* Sponsored Banner Slot (Admin Controlled Local Ads & Google Ads) */}
-              <div className="px-4 py-2 space-y-3">
+              {/* Promoted / Local Sponsored Ads (Admin Controlled - Separate from Google AdMob) */}
+              <div className="px-4 py-2">
                 <LocalSponsoredAd
                   placement="homepage_banner"
                   variant="banner"
@@ -577,7 +620,6 @@ export default function App() {
                     if (p) handleOpenPlace(p);
                   }}
                 />
-                <GoogleAdSlot placement="home" />
               </div>
 
               {/* 7. LIST YOUR BUSINESS BANNER */}
@@ -792,6 +834,9 @@ export default function App() {
             if (p) handleOpenPlace(p);
           }}
         />
+
+        {/* Resident / User Authentication & Email Verification Modal */}
+        <UserAuthModal />
       </Suspense>
     </div>
   </>

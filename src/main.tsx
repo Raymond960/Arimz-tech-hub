@@ -5,16 +5,22 @@ import './index.css';
 import { registerServiceWorker } from './utils/offlineCache';
 import { ThemeProvider } from './context/ThemeContext';
 import { BrandingProvider } from './context/BrandingContext';
+import { UserAuthProvider } from './context/UserAuthContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 registerServiceWorker();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <ThemeProvider>
-      <BrandingProvider>
-        <App />
-      </BrandingProvider>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <BrandingProvider>
+          <UserAuthProvider>
+            <App />
+          </UserAuthProvider>
+        </BrandingProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   </StrictMode>,
 );
 

@@ -13,6 +13,11 @@ if (process.env.SMTP_HOST && /^smp\./i.test(process.env.SMTP_HOST.trim())) {
   process.env.SMTP_HOST = process.env.SMTP_HOST.trim().replace(/^smp\./i, 'smtp.');
 }
 
+if (!process.env.SMTP_HOST) process.env.SMTP_HOST = 'smtp.gmail.com';
+if (!process.env.SMTP_PORT) process.env.SMTP_PORT = '587';
+if (!process.env.SMTP_USER) process.env.SMTP_USER = 'domnanraymond9@gmail.com';
+if (!process.env.EMAIL_FROM) process.env.EMAIL_FROM = 'domnanraymond9@gmail.com';
+
 import {
   initDatabase,
   getDb,
@@ -59,14 +64,26 @@ import {
   getAdvertisementSettings,
   updateAdvertisementSettings,
   getAdvertisementAnalytics,
-  findAdminByInvitationToken
+  findAdminByInvitationToken,
+  getRegisteredUsers,
+  findUserByEmail,
+  findUserById,
+  saveRegisteredUser,
+  getUserVerification,
+  saveUserVerification,
+  deleteUserVerification,
+  saveUserAuthSession,
+  getUserAuthSession,
+  deleteUserAuthSession
 } from './server/db';
 import {
   sendAdminInvitationEmail,
+  sendUserVerificationEmail,
   getSmtpStatus,
   verifySmtpConnection,
   parseAdminInviteExpiryMs
 } from './server/email';
+import { verifyGoogleIdToken } from './server/googleAuth';
 import adminInvitationRoutes from './backend/src/routes/adminInvitation.routes';
 import {
   verifyAdminCredentials,
@@ -80,6 +97,8 @@ import {
   checkLoginLockout,
   recordFailedLogin,
   clearFailedLogins,
+  parseCookies,
+  timingSafeCompare,
   AuthenticatedRequest
 } from './server/auth';
 import {
@@ -140,6 +159,31 @@ app.use((req, res, next) => {
 
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ limit: '100mb', extended: true }));
+
+// Block direct web access to server source files, server builds, database files, and source maps
+app.use((req, res, next) => {
+  const urlPath = req.path.toLowerCase();
+  if (
+    urlPath.startsWith('/server-dist') ||
+    urlPath.startsWith('/server-data') ||
+    urlPath.startsWith('/dist/server') ||
+    urlPath.includes('shendam_db') ||
+    urlPath.includes('database.json') ||
+    urlPath === '/shendam_db.json' ||
+    urlPath === '/shendam_db.json.bak' ||
+    urlPath === '/server.cjs' ||
+    urlPath === '/server.cjs.map' ||
+    urlPath.endsWith('.bak') ||
+    urlPath.endsWith('.tmp') ||
+    urlPath.endsWith('.cjs') ||
+    urlPath === '/server.ts' ||
+    urlPath.startsWith('/server/') ||
+    (urlPath.endsWith('.ts') && !urlPath.startsWith('/src/'))
+  ) {
+    return res.status(404).json({ error: 'Not Found' });
+  }
+  next();
+});
 
 // Normalize and securely persist place image inputs
 function normalizeImageInput(inputUrl: any, prefix = 'biz'): string {
@@ -393,12 +437,519 @@ app.get('/api/admin/verify', requireAdminAuth, (req: AuthenticatedRequest, res) 
 });
 
 // ============================================================================
+// 2.4 USER / RESIDENT AUTHENTICATION & 4-DIGIT EMAIL OTP VERIFICATION APIS
+// ============================================================================
+
+// Register a new user account & dispatch 4-digit OTP
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { email, password, confirmPassword, name } = req.body || {};
+
+    console.log('[AUTH] Registration request received');
+
+    if (!email || typeof email !== 'string' || !isValidEmail(email)) {
+      return res.status(400).json({ success: false, error: 'A valid email address is required.' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (!password || typeof password !== 'string' || password.length < 6) {
+      return res.status(400).json({ success: false, error: 'Password must be at least 6 characters long.' });
+    }
+
+    if (confirmPassword && password !== confirmPassword) {
+      return res.status(400).json({ success: false, error: 'Passwords do not match.' });
+    }
+
+    const existingUser = findUserByEmail(cleanEmail);
+    if (existingUser && existingUser.isEmailVerified && existingUser.authProvider === 'email') {
+      return res.status(400).json({
+        success: false,
+        error: 'An account with this email address already exists. Please sign in.'
+      });
+    }
+
+    // Generate secure 4-digit OTP code (between 1000 and 9999)
+    const verificationCode = Math.floor(1000 + Math.random() * 9000).toString();
+    console.log('[AUTH] Verification code generated');
+
+    const now = Date.now();
+    const expiresAt = now + 10 * 60 * 1000; // 10 minutes expiry
+
+    // Save verification record
+    saveUserVerification({
+      email: cleanEmail,
+      code: verificationCode,
+      createdAt: now,
+      expiresAt,
+      attempts: 0,
+      maxAttempts: 5,
+      lastResendAt: now,
+      status: 'pending'
+    });
+
+    const passwordHash = hashPassword(password);
+    const cleanName = (name && typeof name === 'string' && name.trim().length > 0)
+      ? name.trim()
+      : cleanEmail.split('@')[0];
+
+    if (existingUser) {
+      existingUser.passwordHash = passwordHash;
+      existingUser.name = cleanName;
+      existingUser.updatedAt = new Date().toISOString();
+      saveRegisteredUser(existingUser);
+    } else {
+      const newUser = {
+        id: 'usr_' + crypto.randomBytes(12).toString('hex'),
+        email: cleanEmail,
+        name: cleanName,
+        passwordHash,
+        authProvider: 'email' as const,
+        isEmailVerified: false,
+        status: 'pending' as const,
+        createdAt: new Date().toISOString()
+      };
+      saveRegisteredUser(newUser);
+    }
+
+    // Call email delivery service
+    const emailResult = await sendUserVerificationEmail({
+      email: cleanEmail,
+      code: verificationCode,
+      name: cleanName,
+      expiresMinutes: 10
+    });
+
+    if (!emailResult.success) {
+      console.warn(`[AUTH] 🔑 OTP verification code for ${cleanEmail}: [ ${verificationCode} ] (Email delivery unavailable)`);
+      return res.status(200).json({
+        success: true,
+        emailSent: false,
+        requiresVerification: true,
+        email: cleanEmail,
+        message: 'Your account was created, but we could not send the verification email. ' + (emailResult.error || 'Please check email configuration or try resending.')
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      emailSent: true,
+      requiresVerification: true,
+      email: cleanEmail,
+      message: 'A 4-digit verification code has been sent to your email.'
+    });
+  } catch (err: any) {
+    console.error('[AUTH] Registration error:', err);
+    return res.status(500).json({ success: false, error: 'Server error processing registration.' });
+  }
+});
+
+// Verify 4-digit OTP code
+app.post('/api/auth/verify-code', (req, res) => {
+  try {
+    const { email, code } = req.body || {};
+
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ success: false, error: 'Email address is required.' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanCode = String(code || '').trim();
+
+    if (!/^\d{4}$/.test(cleanCode)) {
+      return res.status(400).json({ success: false, error: 'Verification code must be exactly 4 digits.' });
+    }
+
+    const record = getUserVerification(cleanEmail);
+    if (!record) {
+      return res.status(400).json({
+        success: false,
+        error: 'No active verification code found for this email. Please request a new code.'
+      });
+    }
+
+    if (Date.now() > record.expiresAt) {
+      record.status = 'expired';
+      saveUserVerification(record);
+      return res.status(400).json({
+        success: false,
+        expired: true,
+        error: 'This verification code has expired (10 min limit). Please request a new code.'
+      });
+    }
+
+    if (record.attempts >= record.maxAttempts) {
+      return res.status(400).json({
+        success: false,
+        maxAttemptsReached: true,
+        error: 'Maximum verification attempts exceeded. Please request a new code.'
+      });
+    }
+
+    if (record.code !== cleanCode) {
+      record.attempts += 1;
+      saveUserVerification(record);
+      const remaining = Math.max(0, record.maxAttempts - record.attempts);
+      return res.status(400).json({
+        success: false,
+        remainingAttempts: remaining,
+        error: `Invalid 4-digit code. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.`
+      });
+    }
+
+    // Code matches successfully!
+    record.status = 'verified';
+    saveUserVerification(record);
+
+    let user = findUserByEmail(cleanEmail);
+    if (user) {
+      user.isEmailVerified = true;
+      user.status = 'active';
+      user.updatedAt = new Date().toISOString();
+      user.lastLoginAt = new Date().toISOString();
+      saveRegisteredUser(user);
+    } else {
+      user = {
+        id: 'usr_' + crypto.randomBytes(12).toString('hex'),
+        email: cleanEmail,
+        name: cleanEmail.split('@')[0],
+        authProvider: 'email',
+        isEmailVerified: true,
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        lastLoginAt: new Date().toISOString()
+      };
+      saveRegisteredUser(user);
+    }
+
+    // Create session
+    const sessionToken = 'usr_' + crypto.randomBytes(32).toString('hex');
+    const sessionExpiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000; // 30 days
+    saveUserAuthSession({
+      token: sessionToken,
+      userId: user.id,
+      email: user.email,
+      name: user.name,
+      expiresAt: sessionExpiresAt,
+      createdAt: Date.now()
+    });
+
+    res.setHeader('Set-Cookie', `shendam_user_token=${sessionToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`);
+
+    const { passwordHash: _, ...safeUser } = user as any;
+    return res.json({
+      success: true,
+      verified: true,
+      token: sessionToken,
+      user: safeUser,
+      message: 'Account successfully verified.'
+    });
+  } catch (err: any) {
+    console.error('[AUTH] Verify code error:', err);
+    return res.status(500).json({ success: false, error: 'Server error verifying code.' });
+  }
+});
+
+// Resend 4-digit OTP code with cooldown
+app.post('/api/auth/resend-code', async (req, res) => {
+  try {
+    const { email } = req.body || {};
+
+    if (!email || typeof email !== 'string' || !isValidEmail(email)) {
+      return res.status(400).json({ success: false, error: 'A valid email address is required.' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const user = findUserByEmail(cleanEmail);
+
+    if (user && user.isEmailVerified) {
+      return res.status(400).json({
+        success: false,
+        alreadyVerified: true,
+        message: 'Account is already verified. Please sign in.'
+      });
+    }
+
+    const existingRecord = getUserVerification(cleanEmail);
+    const now = Date.now();
+
+    // 60-second resend cooldown
+    if (existingRecord && now - existingRecord.lastResendAt < 60000) {
+      const remainingSec = Math.ceil((60000 - (now - existingRecord.lastResendAt)) / 1000);
+      return res.status(429).json({
+        success: false,
+        cooldown: true,
+        remainingSeconds: remainingSec,
+        error: `Please wait ${remainingSec}s before requesting a new code.`
+      });
+    }
+
+    // Generate new 4-digit code
+    const newCode = Math.floor(1000 + Math.random() * 9000).toString();
+    console.log('[AUTH] New verification code generated for resend');
+
+    saveUserVerification({
+      email: cleanEmail,
+      code: newCode,
+      createdAt: now,
+      expiresAt: now + 10 * 60 * 1000,
+      attempts: 0,
+      maxAttempts: 5,
+      lastResendAt: now,
+      status: 'pending'
+    });
+
+    const emailResult = await sendUserVerificationEmail({
+      email: cleanEmail,
+      code: newCode,
+      name: user?.name,
+      expiresMinutes: 10
+    });
+
+    if (!emailResult.success) {
+      console.warn(`[AUTH] 🔑 Resent OTP verification code for ${cleanEmail}: [ ${newCode} ] (Email delivery unavailable)`);
+      return res.status(200).json({
+        success: false,
+        emailSent: false,
+        error: emailResult.error || 'Failed to deliver verification email. Please check SMTP settings.'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      emailSent: true,
+      message: 'A new 4-digit verification code has been sent to your email.'
+    });
+  } catch (err: any) {
+    console.error('[AUTH] Resend code error:', err);
+    return res.status(500).json({ success: false, error: 'Server error resending code.' });
+  }
+});
+
+// User Login (Email + Password)
+app.post('/api/auth/login', (req, res) => {
+  try {
+    const { email, password } = req.body || {};
+
+    if (!email || !password) {
+      return res.status(400).json({ success: false, error: 'Email and password are required.' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const user = findUserByEmail(cleanEmail);
+
+    if (!user || !user.passwordHash) {
+      return res.status(401).json({ success: false, error: 'Invalid email or password.' });
+    }
+
+    const expectedHash = hashPassword(password);
+    if (user.passwordHash !== expectedHash) {
+      return res.status(401).json({ success: false, error: 'Invalid email or password.' });
+    }
+
+    if (!user.isEmailVerified) {
+      return res.status(403).json({
+        success: false,
+        requiresVerification: true,
+        email: user.email,
+        message: 'Your email address is not verified yet. Please enter the verification code.'
+      });
+    }
+
+    user.lastLoginAt = new Date().toISOString();
+    saveRegisteredUser(user);
+
+    const sessionToken = 'usr_' + crypto.randomBytes(32).toString('hex');
+    const sessionExpiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000;
+    saveUserAuthSession({
+      token: sessionToken,
+      userId: user.id,
+      email: user.email,
+      name: user.name,
+      expiresAt: sessionExpiresAt,
+      createdAt: Date.now()
+    });
+
+    res.setHeader('Set-Cookie', `shendam_user_token=${sessionToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`);
+
+    const { passwordHash: _, ...safeUser } = user as any;
+    return res.json({
+      success: true,
+      token: sessionToken,
+      user: safeUser,
+      message: 'Signed in successfully.'
+    });
+  } catch (err: any) {
+    console.error('[AUTH] Login error:', err);
+    return res.status(500).json({ success: false, error: 'Server error processing login.' });
+  }
+});
+
+// Google Authentication (Verified via cryptographically signed Google ID Token)
+app.post('/api/auth/google', async (req, res) => {
+  try {
+    const { idToken, credential } = req.body || {};
+    const tokenToVerify = typeof idToken === 'string' && idToken.trim()
+      ? idToken.trim()
+      : typeof credential === 'string' && credential.trim()
+        ? credential.trim()
+        : '';
+
+    // 1. Strictly reject requests with missing tokens or containing only an email address
+    if (!tokenToVerify) {
+      return res.status(401).json({
+        success: false,
+        error: 'Google ID token (idToken or credential) is required. Raw email authentication is strictly rejected.'
+      });
+    }
+
+    // 2. Cryptographically verify the Google ID token
+    let verifiedUser;
+    try {
+      const testCertsHeader = req.headers['x-test-google-certs'];
+      let certsOverride: Record<string, string> | undefined = undefined;
+      if (process.env.NODE_ENV !== 'production' && testCertsHeader && typeof testCertsHeader === 'string') {
+        try {
+          certsOverride = JSON.parse(Buffer.from(testCertsHeader, 'base64').toString('utf-8'));
+        } catch {
+          // ignore invalid header
+        }
+      }
+
+      verifiedUser = await verifyGoogleIdToken(tokenToVerify, { certsOverride });
+    } catch (verifyErr: any) {
+      return res.status(401).json({
+        success: false,
+        error: `Google authentication failed: ${verifyErr?.message || 'Invalid or expired Google token.'}`
+      });
+    }
+
+    if (!verifiedUser || !verifiedUser.email) {
+      return res.status(401).json({
+        success: false,
+        error: 'Unable to extract verified identity from Google ID token.'
+      });
+    }
+
+    // 3. Obtain user identity SOLELY from the verified token (ignore any req.body.email)
+    const cleanEmail = verifiedUser.email.trim().toLowerCase();
+    const cleanName = verifiedUser.name || cleanEmail.split('@')[0];
+    const avatar = verifiedUser.avatar;
+
+    let user = findUserByEmail(cleanEmail);
+
+    if (user) {
+      user.isEmailVerified = true;
+      user.status = 'active';
+      if (cleanName) user.name = cleanName;
+      if (avatar) user.avatar = avatar;
+      user.lastLoginAt = new Date().toISOString();
+      saveRegisteredUser(user);
+    } else {
+      user = {
+        id: 'usr_' + crypto.randomBytes(12).toString('hex'),
+        email: cleanEmail,
+        name: cleanName,
+        authProvider: 'google',
+        isEmailVerified: true,
+        status: 'active',
+        avatar: avatar || undefined,
+        createdAt: new Date().toISOString(),
+        lastLoginAt: new Date().toISOString()
+      };
+      saveRegisteredUser(user);
+    }
+
+    const sessionToken = 'usr_' + crypto.randomBytes(32).toString('hex');
+    const sessionExpiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000;
+    saveUserAuthSession({
+      token: sessionToken,
+      userId: user.id,
+      email: user.email,
+      name: user.name,
+      expiresAt: sessionExpiresAt,
+      createdAt: Date.now()
+    });
+
+    res.setHeader('Set-Cookie', `shendam_user_token=${sessionToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`);
+
+    const { passwordHash: _, ...safeUser } = user as any;
+    return res.json({
+      success: true,
+      token: sessionToken,
+      user: safeUser,
+      message: 'Signed in with Google successfully.'
+    });
+  } catch (err: any) {
+    console.error('[AUTH] Google auth error:', err);
+    return res.status(500).json({ success: false, error: 'Server error processing Google authentication.' });
+  }
+});
+
+// Current Logged In User
+app.get('/api/auth/me', (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    const cookieHeader = req.headers.cookie;
+
+    let token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : undefined;
+    if (!token && cookieHeader) {
+      const match = cookieHeader.match(/shendam_user_token=([^;]+)/);
+      if (match) token = match[1].trim();
+    }
+
+    if (!token) {
+      return res.json({ authenticated: false, user: null });
+    }
+
+    const session = getUserAuthSession(token);
+    if (!session) {
+      return res.json({ authenticated: false, user: null });
+    }
+
+    const user = findUserById(session.userId) || findUserByEmail(session.email);
+    if (!user) {
+      return res.json({ authenticated: false, user: null });
+    }
+
+    const { passwordHash: _, ...safeUser } = user as any;
+    return res.json({ authenticated: true, user: safeUser, token });
+  } catch (err: any) {
+    return res.json({ authenticated: false, user: null });
+  }
+});
+
+// User Logout
+app.post('/api/auth/logout', (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    const cookieHeader = req.headers.cookie;
+
+    let token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : undefined;
+    if (!token && cookieHeader) {
+      const match = cookieHeader.match(/shendam_user_token=([^;]+)/);
+      if (match) token = match[1].trim();
+    }
+
+    if (token) {
+      deleteUserAuthSession(token);
+    }
+
+    res.setHeader('Set-Cookie', 'shendam_user_token=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT');
+    return res.json({ success: true, message: 'Logged out successfully.' });
+  } catch (err: any) {
+    return res.json({ success: true });
+  }
+});
+
+
+// ============================================================================
 // 2.5 ADMIN MANAGEMENT & RBAC APIS
 // ============================================================================
-// Get list of all administrators
-app.get('/api/admin/users', requireAdminAuth, (req: AuthenticatedRequest, res) => {
+// Get list of all administrators (SUPER_ADMIN only)
+app.get('/api/admin/users', requireAdminAuth, requireRole(['SUPER_ADMIN']), (req: AuthenticatedRequest, res) => {
   const admins = getAdmins().map((a) => {
-    const { passwordHash, ...safeAdmin } = a;
+    const { passwordHash, invitationToken, ...safeAdmin } = a;
     return safeAdmin;
   });
   res.json({ success: true, admins, total: admins.length });
@@ -434,7 +985,7 @@ if (invitationRouter) {
   app.use('/api/admin/invitations', invitationRouter);
 }
 
-// Verify invitation token
+// Verify invitation token (Public endpoint for accepting invites)
 app.get('/api/admin/invite/verify', (req, res) => {
   try {
     const token = req.query.token as string;
@@ -517,7 +1068,7 @@ app.post('/api/admin/invite/accept', (req, res) => {
     const session = createAdminSession(updatedAdmin.email, updatedAdmin.role, updatedAdmin.title, updatedAdmin.name, updatedAdmin.id);
     res.setHeader('Set-Cookie', session.cookieHeader);
 
-    const { passwordHash: _, ...safeAdmin } = updatedAdmin;
+    const { passwordHash: _, invitationToken: __, ...safeAdmin } = updatedAdmin;
     res.json({
       success: true,
       message: 'Account setup complete! Welcome to Shendam Connect Admin Portal.',
@@ -530,7 +1081,7 @@ app.post('/api/admin/invite/accept', (req, res) => {
   }
 });
 
-// Create a new administrator (Sends invitation email or sets direct password)
+// Create a new administrator (SUPER_ADMIN only)
 app.post('/api/admin/users', requireAdminAuth, requireRole(['SUPER_ADMIN']), async (req: AuthenticatedRequest, res) => {
   try {
     const { email, password, name, role, title, status, sendInvite } = req.body || {};
@@ -619,7 +1170,7 @@ app.post('/api/admin/users', requireAdminAuth, requireRole(['SUPER_ADMIN']), asy
       }
     }
 
-    const { passwordHash: _, ...safeAdmin } = newAdmin;
+    const { passwordHash: _, invitationToken: __, ...safeAdmin } = newAdmin;
     res.status(201).json({
       success: true,
       admin: safeAdmin,
@@ -634,8 +1185,8 @@ app.post('/api/admin/users', requireAdminAuth, requireRole(['SUPER_ADMIN']), asy
   }
 });
 
-// Resend Invitation Email to an Administrator
-app.post('/api/admin/users/:id/resend-invite', requireAdminAuth, async (req: AuthenticatedRequest, res) => {
+// Resend Invitation Email to an Administrator (SUPER_ADMIN only)
+app.post('/api/admin/users/:id/resend-invite', requireAdminAuth, requireRole(['SUPER_ADMIN']), async (req: AuthenticatedRequest, res) => {
   try {
     const { id } = req.params;
     const admin = findAdminById(id);
@@ -690,7 +1241,7 @@ app.post('/api/admin/users/:id/resend-invite', requireAdminAuth, async (req: Aut
       emailError = mailErr?.message || 'Email delivery is not configured correctly. Please check SMTP_HOST, SMTP_USER and SMTP_PASS.';
     }
 
-    const { passwordHash: _, ...safeAdmin } = updatedAdmin || admin;
+    const { passwordHash: _, invitationToken: __, ...safeAdmin } = updatedAdmin || admin;
     res.json({
       success: true,
       admin: safeAdmin,
@@ -704,8 +1255,22 @@ app.post('/api/admin/users/:id/resend-invite', requireAdminAuth, async (req: Aut
   }
 });
 
-// Update an administrator
-app.put('/api/admin/users/:id', requireAdminAuth, (req: AuthenticatedRequest, res) => {
+// Get single admin invitation token (SUPER_ADMIN only)
+app.get('/api/admin/users/:id/invitation-token', requireAdminAuth, requireRole(['SUPER_ADMIN']), (req: AuthenticatedRequest, res) => {
+  const { id } = req.params;
+  const admin = findAdminById(id);
+  if (!admin) {
+    return res.status(404).json({ error: 'Administrator account not found.' });
+  }
+  res.json({
+    success: true,
+    invitationToken: admin.invitationToken || null,
+    invitationExpiresAt: admin.invitationExpiresAt || null
+  });
+});
+
+// Update an administrator (SUPER_ADMIN only)
+app.put('/api/admin/users/:id', requireAdminAuth, requireRole(['SUPER_ADMIN']), (req: AuthenticatedRequest, res) => {
   try {
     const { id } = req.params;
     const { name, role, title, status, password } = req.body || {};
@@ -743,7 +1308,7 @@ app.put('/api/admin/users/:id', requireAdminAuth, (req: AuthenticatedRequest, re
       return res.status(404).json({ error: 'Administrator not found or could not be updated.' });
     }
 
-    const { passwordHash: _, ...safeAdmin } = updatedAdmin;
+    const { passwordHash: _, invitationToken: __, ...safeAdmin } = updatedAdmin;
     res.json({ success: true, admin: safeAdmin });
   } catch (err: any) {
     console.error('[AdminManagement] Update Admin error:', err);
@@ -751,8 +1316,8 @@ app.put('/api/admin/users/:id', requireAdminAuth, (req: AuthenticatedRequest, re
   }
 });
 
-// Toggle Admin status (Active / Disabled)
-app.patch('/api/admin/users/:id/status', requireAdminAuth, (req: AuthenticatedRequest, res) => {
+// Toggle Admin status (Active / Disabled) (SUPER_ADMIN only)
+app.patch('/api/admin/users/:id/status', requireAdminAuth, requireRole(['SUPER_ADMIN']), (req: AuthenticatedRequest, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body || {};
@@ -776,15 +1341,15 @@ app.patch('/api/admin/users/:id/status', requireAdminAuth, (req: AuthenticatedRe
       revokeAllSessionsForAdmin(admin.email);
     }
 
-    const { passwordHash: _, ...safeAdmin } = updated;
+    const { passwordHash: _, invitationToken: __, ...safeAdmin } = updated;
     res.json({ success: true, admin: safeAdmin });
   } catch (err: any) {
     res.status(400).json({ error: err.message || 'Failed to update status.' });
   }
 });
 
-// Delete an administrator
-app.delete('/api/admin/users/:id', requireAdminAuth, (req: AuthenticatedRequest, res) => {
+// Delete an administrator (SUPER_ADMIN only)
+app.delete('/api/admin/users/:id', requireAdminAuth, requireRole(['SUPER_ADMIN']), (req: AuthenticatedRequest, res) => {
   try {
     const { id } = req.params;
     const admin = findAdminById(id);
@@ -942,7 +1507,7 @@ app.post('/api/admin/upload', requireAdminAuth, (req: AuthenticatedRequest, res)
       }
     }
 
-    const prefix = filename?.toLowerCase().includes('logo') || brandingTarget ? 'logo' : 'biz';
+    const prefix = req.body.prefix || (filename?.toLowerCase().includes('lga') || brandingTarget === 'lga_profile' ? 'lga' : (filename?.toLowerCase().includes('logo') || brandingTarget ? 'logo' : 'biz'));
     const safeUniqueName = `${prefix}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}.${ext}`;
 
     const publicUrl = storeImageBuffer(safeUniqueName, mimeType, buffer);
@@ -1133,8 +1698,13 @@ app.post('/api/bookings', (req, res) => {
       }
     : undefined;
 
+  const publicToken = `bk_tok_${crypto.randomBytes(12).toString('hex')}`;
+  const accessToken = `bk_sec_${crypto.randomBytes(24).toString('hex')}`;
+
   const newBooking: Booking = {
     id: `BK-${new Date().getFullYear()}-${String((db.bookings || []).length + 1).padStart(3, '0')}`,
+    publicToken,
+    accessToken,
     placeId,
     placeName,
     category: category || 'hotels',
@@ -1156,6 +1726,12 @@ app.post('/api/bookings', (req, res) => {
 
   db.bookings.unshift(newBooking);
 
+  // Set HttpOnly token cookie for session persistence
+  try {
+    const cookieString = `shendam_booking_token_${newBooking.id}=${accessToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`;
+    res.setHeader('Set-Cookie', cookieString);
+  } catch {}
+
   // Trigger Admin Notification & Event
   addAdminNotification(
     'booking',
@@ -1176,8 +1752,46 @@ app.post('/api/bookings', (req, res) => {
   res.status(201).json({
     success: true,
     message: 'Booking request created successfully. Please pay directly to the verified hotel bank account.',
-    booking: newBooking
+    booking: newBooking,
+    accessToken,
+    publicToken
   });
+});
+
+// Secure Booking Lookup
+app.get('/api/bookings/:id', (req, res) => {
+  const { id } = req.params;
+  const db = getDb();
+
+  const booking = db.bookings.find((b) => b.id === id || b.publicToken === id);
+  if (!booking) {
+    return res.status(404).json({ error: 'Booking reservation record not found.' });
+  }
+
+  const authHeader = req.headers.authorization;
+  const customHeader = req.headers['x-booking-access-token'] as string;
+  const cookies = parseCookies(req.headers.cookie);
+  const cookieToken = cookies[`shendam_booking_token_${booking.id}`] || cookies[`shendam_booking_token_${booking.publicToken}`] || cookies['shendam_booking_token'];
+  const queryToken = req.query.accessToken as string;
+
+  const providedToken = authHeader?.startsWith('Bearer ')
+    ? authHeader.slice(7).trim()
+    : (customHeader || cookieToken || queryToken || '').trim();
+
+  const adminToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : (req.headers['x-admin-token'] as string || cookies['shendam_admin_token']);
+  const adminSession = adminToken ? validateSessionToken(adminToken) : null;
+
+  const isOwner = Boolean(booking.accessToken && timingSafeCompare(providedToken, booking.accessToken));
+  const isAdmin = Boolean(adminSession);
+
+  if (!isOwner && !isAdmin) {
+    return res.status(403).json({
+      error: 'Forbidden',
+      message: 'Access denied: You do not have authorization to view this booking reservation.'
+    });
+  }
+
+  res.json({ success: true, booking });
 });
 
 // Public Customer Payment Reference/Proof Submission
@@ -1186,9 +1800,36 @@ app.post('/api/bookings/:id/payment-proof', (req, res) => {
   const { paymentReference, paymentProofNotes } = req.body;
   const db = getDb();
 
-  const booking = db.bookings.find((b) => b.id === id);
+  const booking = db.bookings.find((b) => b.id === id || b.publicToken === id);
   if (!booking) {
     return res.status(404).json({ error: 'Booking reservation record not found.' });
+  }
+
+  // Extract provided authorization tokens
+  const authHeader = req.headers.authorization;
+  const customHeader = req.headers['x-booking-access-token'] as string;
+  const cookies = parseCookies(req.headers.cookie);
+  const cookieToken = cookies[`shendam_booking_token_${booking.id}`] || cookies[`shendam_booking_token_${booking.publicToken}`] || cookies['shendam_booking_token'];
+  const bodyToken = req.body.accessToken;
+  const queryToken = req.query.accessToken as string;
+
+  const providedToken = authHeader?.startsWith('Bearer ')
+    ? authHeader.slice(7).trim()
+    : (customHeader || bodyToken || cookieToken || queryToken || '').trim();
+
+  // Check admin session
+  const adminToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : (req.headers['x-admin-token'] as string || cookies['shendam_admin_token']);
+  const adminSession = adminToken ? validateSessionToken(adminToken) : null;
+
+  // Authorization check: must match booking.accessToken or be an admin
+  const isOwner = Boolean(booking.accessToken && timingSafeCompare(providedToken, booking.accessToken));
+  const isAdmin = Boolean(adminSession);
+
+  if (!isOwner && !isAdmin) {
+    return res.status(403).json({
+      error: 'Forbidden',
+      message: 'Unauthorized: You do not have permission to submit payment proof for this booking reservation.'
+    });
   }
 
   if (!paymentReference || !paymentReference.trim()) {
@@ -1213,10 +1854,10 @@ app.post('/api/bookings/:id/payment-proof', (req, res) => {
 
   addAuditLog(
     'PAYMENT_PROOF_SUBMITTED',
-    `Booking (${id})`,
+    `Booking (${booking.id})`,
     `Customer ${booking.customerName} submitted payment reference: ${paymentReference.trim()} for ${booking.placeName}`,
-    'Customer Online',
-    id
+    isOwner ? 'Customer Online' : adminSession?.adminEmail || 'Admin',
+    booking.id
   );
 
   saveDatabase(true);
@@ -1369,6 +2010,17 @@ app.delete('/api/admin/bookings/:id', requireAdminAuth, (req: AuthenticatedReque
 // ============================================================================
 // 6. ADMIN HOTELS, BUSINESSES & ATTRACTIONS CRUD (Protected)
 // ============================================================================
+// Helper to validate and sanitize coordinates
+function sanitizeCoordinates(coords: any): { lat: number; lng: number } | undefined {
+  if (!coords || typeof coords !== 'object') return undefined;
+  const lat = typeof coords.lat === 'number' ? coords.lat : parseFloat(coords.lat);
+  const lng = typeof coords.lng === 'number' ? coords.lng : parseFloat(coords.lng);
+  if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180 && (lat !== 0 || lng !== 0)) {
+    return { lat, lng };
+  }
+  return undefined;
+}
+
 // Create Place (Hotel / Business / Commercial / Attraction)
 app.post('/api/admin/places', requireAdminAuth, (req: AuthenticatedRequest, res) => {
   const placeData: Partial<Place> = req.body;
@@ -1385,6 +2037,10 @@ app.post('/api/admin/places', requireAdminAuth, (req: AuthenticatedRequest, res)
     : [normalizedMainImage];
   const normalizedLogo = normalizeImageInput(placeData.logo, `logo_${newPlaceId}`);
 
+  const cleanCoordinates = sanitizeCoordinates(placeData.coordinates);
+  const mapUrl = (placeData.map_url || placeData.mapUrl || '').trim() || (cleanCoordinates ? `https://www.google.com/maps?q=${cleanCoordinates.lat},${cleanCoordinates.lng}` : '');
+  const directionsUrl = (placeData.directions_url || placeData.directionsUrl || '').trim() || (cleanCoordinates ? `https://www.google.com/maps/dir/?api=1&destination=${cleanCoordinates.lat},${cleanCoordinates.lng}` : '');
+
   const newPlace: Place = {
     id: newPlaceId,
     name: placeData.name.trim(),
@@ -1397,6 +2053,10 @@ app.post('/api/admin/places', requireAdminAuth, (req: AuthenticatedRequest, res)
     gallery: normalizedGallery,
     address: placeData.address?.trim() || 'Shendam Town, Plateau State',
     area: placeData.area?.trim() || 'Shendam Central',
+    landmark: placeData.landmark?.trim() || undefined,
+    lga: placeData.lga?.trim() || 'Shendam',
+    state: placeData.state?.trim() || 'Plateau State',
+    country: placeData.country?.trim() || 'Nigeria',
     description: placeData.description?.trim() || 'Local business serving the Shendam community.',
     phone: placeData.phone?.trim() || '',
     whatsapp: placeData.whatsapp?.trim() || '',
@@ -1426,8 +2086,11 @@ app.post('/api/admin/places', requireAdminAuth, (req: AuthenticatedRequest, res)
     deliveryAvailable: placeData.deliveryAvailable !== undefined ? Boolean(placeData.deliveryAvailable) : undefined,
     emergencyHotline: placeData.emergencyHotline?.trim() || undefined,
     ambulanceAvailable: placeData.ambulanceAvailable !== undefined ? Boolean(placeData.ambulanceAvailable) : undefined,
-    coordinates: placeData.coordinates || { lat: 8.877, lng: 9.506 },
-    directionsUrl: placeData.directionsUrl?.trim() || '',
+    coordinates: cleanCoordinates,
+    mapUrl: mapUrl || undefined,
+    map_url: mapUrl || undefined,
+    directionsUrl: directionsUrl || undefined,
+    directions_url: directionsUrl || undefined,
     reviews: [],
     paymentDetails: placeData.paymentDetails && placeData.paymentDetails.accountName && placeData.paymentDetails.accountNumber && placeData.paymentDetails.bankName
       ? {
@@ -1499,6 +2162,10 @@ app.put('/api/admin/places/:id', requireAdminAuth, (req: AuthenticatedRequest, r
   }
   if (updates.address !== undefined) place.address = updates.address.trim();
   if (updates.area !== undefined) place.area = updates.area.trim();
+  if (updates.landmark !== undefined) place.landmark = updates.landmark ? updates.landmark.trim() : undefined;
+  if (updates.lga !== undefined) place.lga = updates.lga ? updates.lga.trim() : undefined;
+  if (updates.state !== undefined) place.state = updates.state ? updates.state.trim() : undefined;
+  if (updates.country !== undefined) place.country = updates.country ? updates.country.trim() : undefined;
   if (updates.description !== undefined) place.description = updates.description.trim();
   if (updates.phone !== undefined) place.phone = updates.phone.trim();
   if (updates.whatsapp !== undefined) place.whatsapp = updates.whatsapp.trim();
@@ -1526,8 +2193,20 @@ app.put('/api/admin/places/:id', requireAdminAuth, (req: AuthenticatedRequest, r
   if (updates.deliveryAvailable !== undefined) place.deliveryAvailable = Boolean(updates.deliveryAvailable);
   if (updates.emergencyHotline !== undefined) place.emergencyHotline = updates.emergencyHotline ? updates.emergencyHotline.trim() : undefined;
   if (updates.ambulanceAvailable !== undefined) place.ambulanceAvailable = Boolean(updates.ambulanceAvailable);
-  if (updates.coordinates !== undefined) place.coordinates = updates.coordinates;
-  if (updates.directionsUrl !== undefined) place.directionsUrl = updates.directionsUrl.trim();
+  if (updates.coordinates !== undefined) {
+    place.coordinates = sanitizeCoordinates(updates.coordinates);
+    delete place.mapPosition;
+  }
+  if (updates.mapUrl !== undefined || updates.map_url !== undefined) {
+    const mUrl = (updates.map_url || updates.mapUrl || '').trim();
+    place.mapUrl = mUrl || undefined;
+    place.map_url = mUrl || undefined;
+  }
+  if (updates.directionsUrl !== undefined || updates.directions_url !== undefined) {
+    const dUrl = (updates.directions_url || updates.directionsUrl || '').trim();
+    place.directionsUrl = dUrl || undefined;
+    place.directions_url = dUrl || undefined;
+  }
   if (updates.paymentDetails !== undefined) {
     if (!updates.paymentDetails || updates.paymentDetails === null) {
       delete place.paymentDetails;
@@ -1942,9 +2621,10 @@ app.post('/api/admin/submissions/:id/approve', requireAdminAuth, (req: Authentic
       : undefined,
     deliveryAvailable: sub.details?.deliveryAvailable,
     takeawayAvailable: sub.details?.pickupAvailable,
-    coordinates: sub.coordinates || { lat: 8.876, lng: 9.504 },
-    directionsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${sub.businessName} ${sub.address} Shendam`)}`,
-    mapPosition: { x: Math.floor(Math.random() * 50) + 25, y: Math.floor(Math.random() * 50) + 25 },
+    coordinates: sanitizeCoordinates(sub.coordinates),
+    directionsUrl: sub.coordinates && typeof sub.coordinates.lat === 'number'
+      ? `https://www.google.com/maps/dir/?api=1&destination=${sub.coordinates.lat},${sub.coordinates.lng}`
+      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${sub.businessName} ${sub.address} Shendam`)}`,
     reviews: [
       {
         id: `rev-initial-${Date.now()}`,
@@ -2222,9 +2902,7 @@ app.post('/api/submissions', (req, res) => {
       landmark: landmark ? landmark.trim() : undefined,
       city: city ? city.trim() : 'Shendam',
       lga: lga ? lga.trim() : 'Shendam LGA, Plateau State, Nigeria',
-      coordinates: coordinates && typeof coordinates.lat === 'number'
-        ? coordinates
-        : { lat: 8.876, lng: 9.504 },
+      coordinates: sanitizeCoordinates(coordinates),
       operatingHours: operatingHours || '8:00 AM - 8:00 PM Daily',
       productsServices: Array.isArray(productsServices) ? productsServices : [],
       details: details || {
@@ -2515,7 +3193,7 @@ app.patch('/api/admin/notifications/:id/read', requireAdminAuth, (req, res) => {
 });
 
 // Broadcast Alert to App Users
-app.post('/api/admin/notifications/broadcast', requireAdminAuth, (req: AuthenticatedRequest, res) => {
+app.post('/api/admin/notifications/broadcast', requireAdminAuth, requireRole(['SUPER_ADMIN', 'CONTENT_ADMIN']), (req: AuthenticatedRequest, res) => {
   const { title, category, content } = req.body;
   if (!title || !content) {
     return res.status(400).json({ error: 'Title and content are required' });
@@ -2542,9 +3220,36 @@ app.get('/api/admin/settings', requireAdminAuth, (req, res) => {
   res.json({ settings: db.settings });
 });
 
-app.put('/api/admin/settings', requireAdminAuth, (req: AuthenticatedRequest, res) => {
+app.put('/api/admin/settings', requireAdminAuth, requireRole(['SUPER_ADMIN', 'CONTENT_ADMIN']), (req: AuthenticatedRequest, res) => {
   const db = getDb();
+  if (!db.settings) {
+    db.settings = {} as any;
+  }
+
+  const oldLgaImage = db.settings.lgaProfileImage;
+  let newLgaImage = req.body.lgaProfileImage;
+
+  // If a base64 Data URI was provided for lgaProfileImage, normalize it to persistent disk storage
+  if (newLgaImage && typeof newLgaImage === 'string' && newLgaImage.startsWith('data:')) {
+    newLgaImage = normalizeImageInput(newLgaImage, 'lga_profile');
+  }
+
+  // Update settings
   Object.assign(db.settings, req.body);
+  if (req.body.lgaProfileImage !== undefined) {
+    db.settings.lgaProfileImage = newLgaImage || null;
+  }
+
+  // If the old image existed, is different from the newly stored one, and is in /uploads/,
+  // clean up the storage file if unreferenced elsewhere
+  if (oldLgaImage && oldLgaImage !== db.settings.lgaProfileImage && typeof oldLgaImage === 'string' && oldLgaImage.includes('/uploads/')) {
+    try {
+      deleteImageFileIfUnreferenced(oldLgaImage);
+    } catch (cleanupErr) {
+      console.warn('[Storage] Non-fatal error cleaning up previous LGA profile image:', cleanupErr);
+    }
+  }
+
   addAuditLog('SETTINGS_UPDATED', 'Platform Settings', 'Updated platform configuration settings', req.adminSession?.adminEmail || 'admin');
   saveDatabase(true);
   res.json({ success: true, settings: db.settings });
@@ -2561,7 +3266,7 @@ app.get('/api/admin/branding', requireAdminAuth, (req, res) => {
   res.json({ branding: getBrandingConfig() });
 });
 
-app.put('/api/admin/branding', requireAdminAuth, (req: AuthenticatedRequest, res) => {
+app.put('/api/admin/branding', requireAdminAuth, requireRole(['SUPER_ADMIN', 'CONTENT_ADMIN']), (req: AuthenticatedRequest, res) => {
   try {
     const body = req.body || {};
     // Normalize and persist any Data URI images to permanent storage (/public/uploads)
@@ -2682,6 +3387,8 @@ app.get('/api/advertisements/settings', (req, res) => {
         placements: settings.googleAds?.placements || {}
       },
       paystack: {
+        // Retained for future activation; disabled in current version (hotel bookings and local ads use verified direct transfers)
+        enabled: false,
         publicKey: process.env.VITE_PAYSTACK_PUBLIC_KEY || settings.paystack?.publicKey || '',
         configured: Boolean(process.env.PAYSTACK_SECRET_KEY)
       }
@@ -2704,12 +3411,24 @@ app.post('/api/advertisements/:id/impression', (req, res) => {
   res.json({ success: true });
 });
 
+// Paystack Online Processing Flag: disabled in current version (Direct Hotel Payment & Admin reconciliation active)
+const PAYSTACK_PROCESSING_ENABLED = process.env.PAYSTACK_ENABLED === 'true';
+
 // Create payment record for advertisement / package
 app.post('/api/advertisements/payments/initiate', (req, res) => {
   try {
     const { advertisementId, packageId, amount, advertiserName, advertiserEmail, advertiserPhone } = req.body;
     if (!advertiserName) {
       return res.status(400).json({ error: 'Advertiser name is required' });
+    }
+
+    if (!PAYSTACK_PROCESSING_ENABLED) {
+      return res.status(200).json({
+        success: false,
+        disabled: true,
+        message: 'Online automated Paystack payment processing is disabled in this version. Please use Direct Bank Payment or contact Shendam Connect Admin for manual reconciliation.',
+        payment: null
+      });
     }
 
     const payment = createAdvertisementPayment({
@@ -2732,11 +3451,19 @@ app.post('/api/advertisements/payments/initiate', (req, res) => {
 });
 
 // Server-side payment verification (Paystack live or test verification)
+// Retained for future activation; disabled in current version.
 app.post('/api/advertisements/payments/verify', async (req, res) => {
   try {
     const { reference } = req.body;
     if (!reference || typeof reference !== 'string') {
       return res.status(400).json({ error: 'Payment reference is required' });
+    }
+
+    if (!PAYSTACK_PROCESSING_ENABLED) {
+      return res.status(403).json({
+        success: false,
+        error: 'Automated Paystack payment verification is disabled in this version. Admin manual reconciliation is available in the Admin Portal.'
+      });
     }
 
     const paystackSecretKey = process.env.PAYSTACK_SECRET_KEY;
@@ -2787,9 +3514,12 @@ app.post('/api/advertisements/payments/verify', async (req, res) => {
   }
 });
 
-// Optional Paystack Webhook
+// Optional Paystack Webhook (retained for future activation; disabled in current version)
 app.post('/api/advertisements/payments/webhook', (req, res) => {
   try {
+    if (!PAYSTACK_PROCESSING_ENABLED) {
+      return res.sendStatus(200);
+    }
     const secret = process.env.PAYSTACK_SECRET_KEY;
     if (secret) {
       const hash = crypto.createHmac('sha512', secret).update(JSON.stringify(req.body)).digest('hex');
@@ -3555,7 +4285,7 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { middlewareMode: true, hmr: false },
       appType: 'spa'
     });
     app.use(vite.middlewares);

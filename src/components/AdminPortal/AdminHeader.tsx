@@ -68,6 +68,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
     activity_log: 'System Audit Logs',
     branding: 'Branding & Logo Management',
     ads: 'Advertisements & Sponsorships CMS',
+    shendam_lga: 'Shendam Local Government (Public Profile)',
     settings: 'Platform Settings'
   };
 

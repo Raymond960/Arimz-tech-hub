@@ -173,8 +173,8 @@ export function verifyAdminCredentials(
 
   const isSuper = normalizedEmail === SUPER_ADMIN_EMAIL.toLowerCase();
   const role: AdminRole = isSuper ? 'SUPER_ADMIN' : 'CONTENT_ADMIN';
-  const title = isSuper ? 'Super Admin & Platform Director' : 'LGA Administrative Staff';
-  const name = isSuper ? 'Super Admin & Platform Director' : 'LGA Admin';
+  const title = isSuper ? 'Super Admin & Platform Director' : 'Shendam Connect Staff Admin';
+  const name = isSuper ? 'Super Admin & Platform Director' : 'Shendam Connect Admin';
 
   return {
     success: true,

@@ -183,10 +183,16 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
     setIsSubmittingProof(true);
     try {
-      const res = await fetch(`/api/bookings/${confirmedBooking.id}/payment-proof`, {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (confirmedBooking.accessToken) {
+        headers['x-booking-access-token'] = confirmedBooking.accessToken;
+      }
+
+      const res = await fetch(`/api/bookings/${confirmedBooking.publicToken || confirmedBooking.id}/payment-proof`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
+          accessToken: confirmedBooking.accessToken,
           paymentReference: paymentRefInput.trim(),
           paymentProofNotes: paymentNotesInput.trim()
         })

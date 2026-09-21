@@ -257,6 +257,14 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       allowedRoles: ['SUPER_ADMIN', 'CONTENT_ADMIN']
     },
     {
+      id: 'shendam_lga',
+      label: 'Shendam Local Government',
+      icon: Building2,
+      badge: 'LGA',
+      badgeColor: 'bg-[#FFC928]/20 text-[#FFC928] border-[#FFC928]/30 font-bold',
+      allowedRoles: ['SUPER_ADMIN', 'CONTENT_ADMIN']
+    },
+    {
       id: 'settings',
       label: 'Settings',
       icon: Settings

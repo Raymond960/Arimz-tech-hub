@@ -1,6 +1,11 @@
 node_modules/
 build/
 dist/
+server-dist/
+server-data/
+shendam_db.json*
+*.bak
+*.tmp
 coverage/
 .DS_Store
 *.log

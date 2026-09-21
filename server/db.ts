@@ -41,7 +41,10 @@ import {
   AdvertisementApprovalStatus,
   AdvertisementPaymentStatus,
   AdminUser,
-  AdminRole
+  AdminRole,
+  RegisteredUser,
+  UserVerificationRecord,
+  UserAuthSession
 } from '../src/types';
 
 export interface DatabaseSchema {
@@ -66,14 +69,22 @@ export interface DatabaseSchema {
   sessions: Record<string, UserSessionRecord>;
   adminSessions?: Record<string, any>;
   admins?: AdminUser[];
+  users?: RegisteredUser[];
+  userVerifications?: Record<string, UserVerificationRecord>;
+  userSessions?: Record<string, UserAuthSession>;
   uploadedImages?: Record<string, { mimeType: string; base64Data: string }>;
   deletedPlaceIds?: string[];
   deletedEventIds?: string[];
   deletedAdIds?: string[];
 }
 
-const DB_FILE_PATH = path.join(process.cwd(), 'shendam_db.json');
-const DB_BACKUP_PATH = path.join(process.cwd(), 'shendam_db.json.bak');
+const DATA_DIR = path.join(process.cwd(), 'server-data');
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+const DB_FILE_PATH = path.join(DATA_DIR, 'shendam_db.json');
+const DB_BACKUP_PATH = path.join(DATA_DIR, 'shendam_db.json.bak');
 const UPLOADS_DIR = path.join(process.cwd(), 'public', 'uploads');
 const DIST_UPLOADS_DIR = path.join(process.cwd(), 'dist', 'uploads');
 
@@ -95,8 +106,8 @@ export const INITIAL_ADVERTISEMENTS: Advertisement[] = [
     title: 'Experience Shendam Holiday Suites & Banquet Centre',
     businessName: 'Shendam Holiday Resort & Suites',
     description: 'Premier executive accommodation with 24/7 solar backup, sparkling gardens, chilled refreshments, and authentic Plateau delicacies.',
-    imageUrl: 'https://images.unsplash.com/photo-1571896349842-33c89424de2d?auto=format&fit=crop&w=800&q=80',
-    bannerImageUrl: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=80',
+    imageUrl: '',
+    bannerImageUrl: '',
     linkUrl: 'https://wa.me/2348034567890?text=Hello%20Shendam%20Holiday%20Resort,%20I%20saw%20your%20promo%20on%20Shendam%20Connect',
     destinationType: 'whatsapp',
     destinationWhatsApp: '+2348034567890',
@@ -115,8 +126,8 @@ export const INITIAL_ADVERTISEMENTS: Advertisement[] = [
     title: 'Weekend Getaway & Luxury Stays',
     businessName: 'Dreams Hotel Shendam',
     description: 'Book executive suites with standby 24/7 power, complimentary breakfast and high-speed Wi-Fi.',
-    imageUrl: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=800&q=80',
-    bannerImageUrl: 'https://images.unsplash.com/photo-1582719508461-905c673771fd?auto=format&fit=crop&w=1200&q=80',
+    imageUrl: '',
+    bannerImageUrl: '',
     linkUrl: 'https://wa.me/2348034567890',
     destinationType: 'whatsapp',
     destinationWhatsApp: '+2348034567890',
@@ -135,8 +146,8 @@ export const INITIAL_ADVERTISEMENTS: Advertisement[] = [
     title: 'Paul GSM Services - Quality Phone Repairs',
     businessName: 'Paul GSM Services',
     description: 'Fast screen replacements, original accessories & hardware diagnostics at Lu\'uriemdet Plaza.',
-    imageUrl: 'https://images.unsplash.com/photo-1581092921461-eab62e97a780?auto=format&fit=crop&w=800&q=80',
-    bannerImageUrl: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=1200&q=80',
+    imageUrl: '',
+    bannerImageUrl: '',
     linkUrl: 'https://wa.me/2348031234567',
     destinationType: 'phone',
     destinationPhone: '+2348031234567',
@@ -373,6 +384,29 @@ export function persistDataUriImage(dataUri: string, prefix = 'biz'): string | n
 // Load persistent DB from file if exists
 export function initDatabase() {
   try {
+    // Legacy migration check: move root shendam_db.json to server-data/ if found
+    const legacyDbPath = path.join(process.cwd(), 'shendam_db.json');
+    const legacyBakPath = path.join(process.cwd(), 'shendam_db.json.bak');
+    if (fs.existsSync(legacyDbPath)) {
+      try {
+        if (!fs.existsSync(DB_FILE_PATH)) {
+          fs.copyFileSync(legacyDbPath, DB_FILE_PATH);
+          console.log('[Database] Migrated legacy root shendam_db.json to server-data/shendam_db.json');
+        }
+        fs.unlinkSync(legacyDbPath);
+      } catch (migErr) {
+        console.warn('[Database] Error migrating legacy database file:', migErr);
+      }
+    }
+    if (fs.existsSync(legacyBakPath)) {
+      try {
+        if (!fs.existsSync(DB_BACKUP_PATH)) {
+          fs.copyFileSync(legacyBakPath, DB_BACKUP_PATH);
+        }
+        fs.unlinkSync(legacyBakPath);
+      } catch {}
+    }
+
     let parsed: any = null;
 
     // 1. Try reading primary database file
@@ -406,21 +440,47 @@ export function initDatabase() {
       const loadedPlaces: Place[] = rawPlaces
         .filter((p) => !deletedPlaceIds.includes(p.id))
         .map((p) => {
+          const cleanImage = p.image && (p.image.includes('unsplash.com') || p.image.includes('paul_gsm')) ? '' : (p.image || '');
+          const cleanGallery = Array.isArray(p.gallery)
+            ? p.gallery.filter((g) => g && !g.includes('unsplash.com') && !g.includes('paul_gsm'))
+            : [];
+          let updated = { ...p, image: cleanImage, gallery: cleanGallery };
+
           // If Dreams Hotel or other hotel has no payment details yet, seed with baseline verified details
-          if (p.id === 'place-dreams-hotel' && !p.paymentDetails) {
+          if (updated.id === 'place-dreams-hotel' && !updated.paymentDetails) {
             const baseline = POPULAR_PLACES.find((bp) => bp.id === 'place-dreams-hotel');
             if (baseline?.paymentDetails) {
-              return { ...p, paymentDetails: baseline.paymentDetails };
+              updated = { ...updated, paymentDetails: baseline.paymentDetails };
             }
           }
-          return p;
+          if ((updated as any).mapPosition) {
+            delete (updated as any).mapPosition;
+          }
+          return updated;
         });
 
       const rawEvents: ShendamEvent[] = Array.isArray(parsed.events) ? parsed.events : SHENDAM_EVENTS;
-      const loadedEvents: ShendamEvent[] = rawEvents.filter((e) => !deletedEventIds.includes(e.id));
+      const loadedEvents: ShendamEvent[] = rawEvents
+        .filter((e) => !deletedEventIds.includes(e.id))
+        .map((e) => ({
+          ...e,
+          image: e.image && e.image.includes('unsplash.com') ? '' : (e.image || '')
+        }));
+
+      const rawHeroSlides: HeroSlide[] = Array.isArray(parsed.heroSlides) ? parsed.heroSlides : HERO_SLIDES;
+      const loadedHeroSlides: HeroSlide[] = rawHeroSlides.map((s) => ({
+        ...s,
+        image: s.image && s.image.includes('unsplash.com') ? '' : (s.image || '')
+      }));
 
       const rawAds: Advertisement[] = Array.isArray(parsed.advertisements) ? parsed.advertisements : INITIAL_ADVERTISEMENTS;
-      let loadedAds: Advertisement[] = rawAds.filter((a) => !deletedAdIds.includes(a.id));
+      let loadedAds: Advertisement[] = rawAds
+        .filter((a) => !deletedAdIds.includes(a.id))
+        .map((a) => ({
+          ...a,
+          imageUrl: a.imageUrl && a.imageUrl.includes('unsplash.com') ? '' : (a.imageUrl || ''),
+          bannerImageUrl: a.bannerImageUrl && a.bannerImageUrl.includes('unsplash.com') ? '' : (a.bannerImageUrl || '')
+        }));
       // Ensure at least one active startup popup ad exists if not previously deleted
       const hasStartup = loadedAds.some((a) => a.placement === 'startup_popup' || a.placement === 'popup_interstitial');
       if (!hasStartup && !deletedAdIds.includes(INITIAL_ADVERTISEMENTS[0].id)) {
@@ -446,7 +506,7 @@ export function initDatabase() {
       db = {
         places: loadedPlaces,
         events: loadedEvents,
-        heroSlides: Array.isArray(parsed.heroSlides) ? parsed.heroSlides : HERO_SLIDES,
+        heroSlides: loadedHeroSlides,
         advertisements: loadedAds,
         advertisementPackages: Array.isArray(parsed.advertisementPackages) && parsed.advertisementPackages.length > 0
           ? parsed.advertisementPackages
@@ -498,11 +558,26 @@ export function initDatabase() {
         sessions: parsed.sessions || {},
         adminSessions: parsed.adminSessions || {},
         admins: rawAdmins,
+        users: Array.isArray(parsed.users) ? parsed.users : [],
+        userVerifications: parsed.userVerifications || {},
+        userSessions: parsed.userSessions || {},
         uploadedImages: parsed.uploadedImages || {},
         deletedPlaceIds,
         deletedEventIds,
         deletedAdIds
       };
+
+      // Ensure all bookings have crypto-secure tokens
+      if (Array.isArray(db.bookings)) {
+        db.bookings.forEach((b: any) => {
+          if (!b.publicToken) {
+            b.publicToken = 'bk_tok_' + crypto.randomBytes(12).toString('hex');
+          }
+          if (!b.accessToken) {
+            b.accessToken = 'bk_sec_' + crypto.randomBytes(24).toString('hex');
+          }
+        });
+      }
 
       if (!fs.existsSync(UPLOADS_DIR)) {
         fs.mkdirSync(UPLOADS_DIR, { recursive: true });
@@ -727,7 +802,7 @@ export function createAdminUser(data: {
     email: data.email.trim().toLowerCase(),
     name: data.name.trim(),
     role: data.role,
-    title: data.title.trim() || 'LGA Administrative Staff',
+    title: data.title.trim() || 'Shendam Connect Staff Admin',
     status: data.status || 'invited',
     passwordHash: data.passwordHash || '',
     createdAt: now,
@@ -765,13 +840,25 @@ export function updateAdminUser(
   const current = admins[index];
   const now = new Date().toISOString();
 
-  // Protect against demoting or disabling the only active super admin
-  if (current.email.toLowerCase() === INITIAL_SUPER_ADMIN.email.toLowerCase()) {
-    if (updates.role && updates.role !== 'SUPER_ADMIN') {
-      throw new Error('The primary platform super administrator cannot be demoted.');
-    }
-    if (updates.status && updates.status === 'disabled') {
-      throw new Error('The primary platform super administrator cannot be disabled.');
+  // Protect against demoting or disabling the last active SUPER_ADMIN
+  if (current.role === 'SUPER_ADMIN') {
+    const isDemotion = updates.role && updates.role !== 'SUPER_ADMIN';
+    const isDisabled = updates.status && updates.status === 'disabled';
+
+    if (isDemotion || isDisabled) {
+      if (current.email.toLowerCase() === INITIAL_SUPER_ADMIN.email.toLowerCase()) {
+        if (isDemotion) throw new Error('The primary platform super administrator cannot be demoted.');
+        if (isDisabled) throw new Error('The primary platform super administrator cannot be disabled.');
+      }
+
+      const activeSuperAdminsExcludingTarget = admins.filter(
+        (a) => a.role === 'SUPER_ADMIN' && a.id !== id && a.status === 'active'
+      ).length;
+
+      if (activeSuperAdminsExcludingTarget === 0) {
+        if (isDemotion) throw new Error('Cannot demote the last remaining active Super Admin.');
+        if (isDisabled) throw new Error('Cannot disable the last remaining active Super Admin.');
+      }
     }
   }
 
@@ -889,6 +976,11 @@ export function isImageReferencedElsewhere(
       if (ad.imageUrl && path.basename(ad.imageUrl.split('?')[0]) === filename) return true;
       if (ad.bannerImageUrl && path.basename(ad.bannerImageUrl.split('?')[0]) === filename) return true;
     }
+  }
+
+  // 7. Check LGA profile image in settings
+  if (db.settings?.lgaProfileImage && path.basename(db.settings.lgaProfileImage.split('?')[0]) === filename) {
+    return true;
   }
 
   return false;
@@ -1939,5 +2031,82 @@ export function updateBrandingConfig(
   saveDatabase(true);
   return getBrandingConfig();
 }
+
+// ============================================================================
+// REGISTERED USERS & VERIFICATION PERSISTENCE
+// ============================================================================
+
+export function getRegisteredUsers(): RegisteredUser[] {
+  if (!db.users) db.users = [];
+  return db.users;
+}
+
+export function findUserByEmail(email: string): RegisteredUser | undefined {
+  if (!email) return undefined;
+  const clean = email.trim().toLowerCase();
+  return (db.users || []).find((u) => u.email.trim().toLowerCase() === clean);
+}
+
+export function findUserById(id: string): RegisteredUser | undefined {
+  if (!id) return undefined;
+  return (db.users || []).find((u) => u.id === id);
+}
+
+export function saveRegisteredUser(user: RegisteredUser): RegisteredUser {
+  if (!db.users) db.users = [];
+  const index = db.users.findIndex((u) => u.id === user.id || u.email.toLowerCase() === user.email.toLowerCase());
+  if (index >= 0) {
+    db.users[index] = { ...db.users[index], ...user, updatedAt: new Date().toISOString() };
+  } else {
+    db.users.push(user);
+  }
+  saveDatabase(true);
+  return user;
+}
+
+export function getUserVerification(email: string): UserVerificationRecord | undefined {
+  if (!email || !db.userVerifications) return undefined;
+  const clean = email.trim().toLowerCase();
+  return db.userVerifications[clean];
+}
+
+export function saveUserVerification(record: UserVerificationRecord): void {
+  if (!db.userVerifications) db.userVerifications = {};
+  const clean = record.email.trim().toLowerCase();
+  db.userVerifications[clean] = record;
+  saveDatabase(true);
+}
+
+export function deleteUserVerification(email: string): void {
+  if (!email || !db.userVerifications) return;
+  const clean = email.trim().toLowerCase();
+  delete db.userVerifications[clean];
+  saveDatabase(true);
+}
+
+export function saveUserAuthSession(session: UserAuthSession): void {
+  if (!db.userSessions) db.userSessions = {};
+  db.userSessions[session.token] = session;
+  saveDatabase(true);
+}
+
+export function getUserAuthSession(token: string): UserAuthSession | undefined {
+  if (!token || !db.userSessions) return undefined;
+  const session = db.userSessions[token];
+  if (!session) return undefined;
+  if (session.expiresAt && session.expiresAt < Date.now()) {
+    delete db.userSessions[token];
+    saveDatabase(true);
+    return undefined;
+  }
+  return session;
+}
+
+export function deleteUserAuthSession(token: string): void {
+  if (!token || !db.userSessions) return;
+  delete db.userSessions[token];
+  saveDatabase(true);
+}
+
 
 

@@ -176,9 +176,20 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
   const handleGetDirections = () => {
     trackEvent('directions_clicked' as any, { entityId: place.id, entityTitle: place.name, category: place.category });
     onClose();
+
+    if (place.directionsUrl || place.directions_url) {
+      window.open(place.directionsUrl || place.directions_url, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
+    if (place.mapUrl || place.map_url) {
+      window.open(place.mapUrl || place.map_url, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
     const destLat = place.coordinates?.lat;
     const destLng = place.coordinates?.lng;
-    const destination = (destLat && destLng) ? `${destLat},${destLng}` : `${place.name}, ${place.address}`;
+    const destination = (destLat && destLng && destLat !== 0) ? `${destLat},${destLng}` : `${place.name}, ${place.address}`;
 
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -849,13 +860,39 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
 
             {expandedSections.location && (
               <div className="p-3.5 pt-1 border-t border-white/10 space-y-3 animate-in fade-in duration-200">
-                <div className="p-3 bg-[#04142F] rounded-xl border border-white/10 space-y-1 text-xs text-[#D5DCE8]">
+                <div className="p-3 bg-[#04142F] rounded-xl border border-white/10 space-y-2 text-xs text-[#D5DCE8]">
                   <div className="flex items-start gap-2">
                     <MapPin className="w-4 h-4 text-[#FFC928] shrink-0 mt-0.5" />
                     <div>
                       <span className="font-semibold text-white block">{place.name}</span>
-                      <span className="text-[#9BAABD]">{place.address || 'No detailed address provided.'}</span>
+                      <span className="text-[#D5DCE8]">{place.address || 'No detailed address provided.'}</span>
                     </div>
+                  </div>
+
+                  {place.landmark && (
+                    <div className="pt-1 border-t border-white/8 text-[11px] text-[#9BAABD]">
+                      <span className="text-white font-bold">Landmark:</span> {place.landmark}
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap gap-2 text-[11px] text-[#9BAABD] pt-1 border-t border-white/8">
+                    <span><strong>Area:</strong> {place.area || 'Shendam Central'}</span>
+                    <span>•</span>
+                    <span><strong>LGA:</strong> {place.lga || 'Shendam'}</span>
+                    <span>•</span>
+                    <span><strong>State:</strong> {place.state || 'Plateau State'}</span>
+                  </div>
+
+                  <div className="text-[11px] pt-1">
+                    {place.coordinates && typeof place.coordinates.lat === 'number' && typeof place.coordinates.lng === 'number' && place.coordinates.lat !== 0 ? (
+                      <span className="text-[#38BDF8] font-mono font-medium">
+                        Coordinates: {place.coordinates.lat.toFixed(6)}, {place.coordinates.lng.toFixed(6)}
+                      </span>
+                    ) : (
+                      <span className="text-[#FFC928] font-medium flex items-center gap-1">
+                        <Info className="w-3.5 h-3.5 inline" /> Location coordinates not available yet
+                      </span>
+                    )}
                   </div>
                 </div>
 

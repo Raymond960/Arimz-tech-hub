@@ -10,21 +10,36 @@ export function getSmtpConfig() {
     process.env.SMTP_HOST = rawHost;
   }
 
-  const SMTP_HOST = rawHost || "smtp.gmail.com";
+  // Always ensure exact host smtp.gmail.com
+  let SMTP_HOST = "smtp.gmail.com";
+  if (rawHost && !/^smp\./i.test(rawHost)) {
+    SMTP_HOST = rawHost;
+  }
+  process.env.SMTP_HOST = SMTP_HOST;
+
   const SMTP_PORT = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587;
+  process.env.SMTP_PORT = String(SMTP_PORT);
+
   const SMTP_SECURE =
     process.env.SMTP_SECURE !== undefined
       ? String(process.env.SMTP_SECURE).toLowerCase() === "true"
       : SMTP_PORT === 465;
 
-  const SMTP_USER = process.env.SMTP_USER?.trim();
-  const SMTP_PASS = process.env.SMTP_PASS?.trim();
+  let SMTP_USER = (process.env.SMTP_USER || "domnanraymond9@gmail.com").trim().replace(/^["']|["']$/g, "");
+  if (!SMTP_USER) SMTP_USER = "domnanraymond9@gmail.com";
+  process.env.SMTP_USER = SMTP_USER;
+
+  // Read password strictly from environment variable SMTP_PASS
+  let SMTP_PASS = (process.env.SMTP_PASS || "").trim().replace(/^["']|["']$/g, "");
+  SMTP_PASS = SMTP_PASS.replace(/\s+/g, "");
+  process.env.SMTP_PASS = SMTP_PASS;
 
   const SMTP_FROM_NAME =
     process.env.SMTP_FROM_NAME?.trim() || "Shendam Connect";
 
   const SMTP_FROM_EMAIL =
-    process.env.SMTP_FROM_EMAIL?.trim() || SMTP_USER || "no-reply@shendamconnect.gov.ng";
+    (process.env.EMAIL_FROM || process.env.SMTP_FROM_EMAIL || SMTP_USER || "domnanraymond9@gmail.com").replace(/^["']|["']$/g, "").trim();
+  process.env.EMAIL_FROM = SMTP_FROM_EMAIL;
 
   const FRONTEND_URL =
     process.env.FRONTEND_URL?.trim() ||
@@ -101,13 +116,14 @@ export function getTransporter() {
     host: SMTP_HOST,
     port: SMTP_PORT,
     secure: SMTP_SECURE,
+    requireTLS: !SMTP_SECURE,
     auth: {
       user: SMTP_USER,
       pass: SMTP_PASS
     },
-    connectionTimeout: 8000,
-    greetingTimeout: 8000,
-    socketTimeout: 10000,
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
     tls: {
       rejectUnauthorized: false
     }
@@ -233,6 +249,118 @@ Shendam Connect Administration
     const safeError = formatSafeSmtpError(err);
     console.error("[EmailService] sendAdminInvitationEmail error:", safeError);
     throw new Error(safeError);
+  }
+}
+
+export async function sendUserVerificationEmail({
+  email,
+  code,
+  name,
+  expiresMinutes = 10
+}: {
+  email: string;
+  code: string;
+  name?: string;
+  expiresMinutes?: number;
+}) {
+  try {
+    const transporter = getTransporter();
+    const { SMTP_FROM_NAME, SMTP_FROM_EMAIL } = getSmtpConfig();
+
+    console.log("[AUTH] Email service initialized");
+    const maskedEmail = email.replace(/(?<=^.{2}).(?=.*@)/g, "*");
+    console.log(`[AUTH] Sending verification email to ${maskedEmail}`);
+
+    const recipientGreeting = name?.trim() ? `Hello ${escapeHtml(name.trim())},` : "Hello,";
+
+    const text = `
+SHENDAM CONNECT
+========================================
+Account Verification
+
+Your verification code:
+${code}
+
+This code expires in ${expiresMinutes} minutes.
+
+If you did not request this verification code, you can ignore this email.
+
+Shendam Connect Platform • Plateau State, Nigeria
+    `.trim();
+
+    const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Your Shendam Connect Verification Code</title>
+</head>
+<body style="margin: 0; padding: 20px; background-color: #020C1B; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 520px; background-color: #04142F; border: 1px solid #1E293B; border-radius: 16px; overflow: hidden; margin: 0 auto; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);">
+    <tr>
+      <td style="padding: 28px 24px 20px 24px; text-align: center; background: linear-gradient(180deg, #0A2246 0%, #04142F 100%); border-bottom: 1px solid #1E293B;">
+        <div style="display: inline-block; background-color: rgba(255, 201, 40, 0.12); border: 1px solid rgba(255, 201, 40, 0.35); border-radius: 10px; padding: 6px 14px; margin-bottom: 10px;">
+          <span style="color: #FFC928; font-weight: 800; font-size: 13px; letter-spacing: 1.5px; text-transform: uppercase;">SHENDAM CONNECT</span>
+        </div>
+        <h1 style="color: #FFFFFF; font-size: 20px; font-weight: 700; margin: 6px 0 0 0; letter-spacing: -0.5px;">Account Verification</h1>
+        <p style="color: #9BAABD; font-size: 12px; margin: 4px 0 0 0;">Community & Commerce Digital Hub</p>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 28px 24px;">
+        <p style="color: #E2E8F0; font-size: 15px; line-height: 1.5; margin: 0 0 12px 0;">
+          ${recipientGreeting}
+        </p>
+        <p style="color: #CBD5E1; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
+          Welcome to <strong style="color: #FFC928;">Shendam Connect</strong>! Please use the 4-digit verification code below to complete your registration and activate your account:
+        </p>
+        <div style="background-color: #08254D; border: 2px dashed rgba(255, 201, 40, 0.45); border-radius: 14px; padding: 22px 16px; text-align: center; margin: 20px 0;">
+          <div style="color: #9BAABD; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px;">Your 4-Digit Verification Code</div>
+          <div style="font-family: 'Courier New', Courier, monospace; font-size: 40px; font-weight: 900; letter-spacing: 12px; color: #FFC928; text-shadow: 0 2px 8px rgba(255, 201, 40, 0.3); padding-left: 12px;">
+            ${code}
+          </div>
+          <div style="color: #CBD5E1; font-size: 12px; margin-top: 10px;">
+            ⏱️ This code expires in <strong>${expiresMinutes} minutes</strong>.
+          </div>
+        </div>
+        <p style="color: #94A3B8; font-size: 12px; line-height: 1.5; margin: 20px 0 0 0;">
+          If you did not request this verification code, you can ignore this email.
+        </p>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 16px 24px; background-color: #020C1B; border-top: 1px solid #1E293B; text-align: center;">
+        <p style="color: #64748B; font-size: 11px; margin: 0;">
+          Shendam Connect Platform &bull; Plateau State, Nigeria
+        </p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+    `;
+
+    const result = await transporter.sendMail({
+      from: `"${SMTP_FROM_NAME}" <${SMTP_FROM_EMAIL}>`,
+      to: email,
+      subject: `${code} is your Shendam Connect verification code`,
+      text,
+      html
+    });
+
+    console.log("[AUTH] Email provider accepted message", result.messageId);
+    return {
+      success: true,
+      messageId: result.messageId
+    };
+  } catch (err: any) {
+    const safeError = formatSafeSmtpError(err);
+    console.error("[AUTH] Verification email failed:", safeError);
+    return {
+      success: false,
+      error: safeError
+    };
   }
 }
 

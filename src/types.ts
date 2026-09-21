@@ -59,6 +59,10 @@ export interface Place {
   gallery?: string[];
   address: string;
   area: string;
+  landmark?: string;
+  lga?: string;
+  state?: string;
+  country?: string;
   description: string;
   phone?: string;
   whatsapp?: string;
@@ -95,6 +99,9 @@ export interface Place {
     lng: number;
   };
   directionsUrl?: string;
+  directions_url?: string;
+  mapUrl?: string;
+  map_url?: string;
   mapPosition?: {
     x: number; // percentage on map
     y: number; // percentage on map
@@ -247,6 +254,7 @@ export type AdminSectionId =
   | 'activity_log'
   | 'branding'
   | 'ads'
+  | 'shendam_lga'
   | 'settings';
 
 export type AdminSection = AdminSectionId;
@@ -577,6 +585,8 @@ export type BookingPaymentStatus =
 
 export interface Booking {
   id: string;
+  publicToken?: string;
+  accessToken?: string;
   placeId: string;
   placeName: string;
   category: CategoryId;
@@ -668,7 +678,27 @@ export interface AdminSettings {
   platformName: string;
   supportEmail: string;
   supportPhone: string;
+  supportWhatsapp?: string;
+  supportHours?: string;
+  supportDescription?: string;
   lgaOfficeAddress: string;
+  lgaOfficialWebsiteUrl?: string;
+  lgaOfficialWebsiteLabel?: string;
+  lgaPublicInfoTitle?: string;
+  lgaPublicInfoDescription?: string;
+  lgaStateRegion?: string;
+  lgaBadgeText?: string;
+  lgaProfileImage?: string | null;
+  lgaCultureTitle?: string;
+  lgaCultureDescription?: string;
+  emergencyHotlinesTitle?: string;
+  emergencyHotlinesBadge?: string;
+  emergencyPhone1Label?: string;
+  emergencyPhone1Number?: string;
+  emergencyPhone1Display?: string;
+  emergencyPhone2Label?: string;
+  emergencyPhone2Number?: string;
+  emergencyPhone2Display?: string;
   activeHeartbeatTimeoutSec: number;
   currencySymbol: string;
   allowDirectBookings: boolean;
@@ -685,3 +715,39 @@ export interface AdminNotification {
   read: boolean;
   linkSection?: AdminSection;
 }
+
+export interface RegisteredUser {
+  id: string;
+  email: string;
+  name: string;
+  passwordHash?: string;
+  authProvider: 'email' | 'google';
+  isEmailVerified: boolean;
+  status: 'active' | 'pending' | 'disabled';
+  avatar?: string;
+  phone?: string;
+  createdAt: string;
+  updatedAt?: string;
+  lastLoginAt?: string;
+}
+
+export interface UserVerificationRecord {
+  email: string;
+  code: string; // 4-digit numeric string
+  createdAt: number;
+  expiresAt: number;
+  attempts: number;
+  maxAttempts: number;
+  lastResendAt: number;
+  status: 'pending' | 'verified' | 'expired';
+}
+
+export interface UserAuthSession {
+  token: string;
+  userId: string;
+  email: string;
+  name: string;
+  expiresAt: number;
+  createdAt: number;
+}
+

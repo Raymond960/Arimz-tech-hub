@@ -24,14 +24,16 @@ export const HeroCarousel: React.FC<HeroCarouselProps> = ({ slides, onExplore })
   return (
     <div className="w-full px-4 sm:px-5 mt-5 z-10 hero-carousel-container">
       <div className="relative w-full h-52 sm:h-64 rounded-2xl sm:rounded-3xl overflow-hidden border border-white/16 shadow-[0_8px_30px_rgba(0,0,0,0.45)] group">
-        {/* Optimized Background Image */}
-        <LazyImage
-          src={slide.image}
-          alt={slide.title}
-          widthParam={800}
-          qualityParam={80}
-          className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
-        />
+        {/* Background Image if uploaded */}
+        {slide.image && slide.image.trim() ? (
+          <LazyImage
+            src={slide.image}
+            alt={slide.title}
+            widthParam={800}
+            qualityParam={80}
+            className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+          />
+        ) : null}
 
         {/* Gradient Overlay matching reference (Dark sapphire on left, transparent on right) */}
         <div className="absolute inset-0 bg-gradient-to-r from-[#04142F]/95 via-[#061B3A]/80 to-transparent z-10" />

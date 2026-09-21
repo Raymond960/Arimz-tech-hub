@@ -4,8 +4,6 @@ import { Place } from '../types';
 import { compressAndValidateImage } from '../utils/imageCompressor';
 
 const PAUL_GSM_ID = 'place-paul-gsm';
-const DEFAULT_PROFILE_PHOTO = '/images/paul_gsm_profile.jpg';
-const DEFAULT_GALLERY = ['/images/paul_gsm_profile.jpg', '/images/paul_gsm_interior.jpg'];
 const DEFAULT_WHATSAPP = '+234 706 728 7969';
 
 interface EditListingProps {
@@ -15,8 +13,8 @@ interface EditListingProps {
 
 export const EditListing: React.FC<EditListingProps> = ({ onSaved, onClose }) => {
   const [listing, setListing] = useState<Place | null>(null);
-  const [photos, setPhotos] = useState<string[]>(DEFAULT_GALLERY);
-  const [coverPhoto, setCoverPhoto] = useState<string>(DEFAULT_PROFILE_PHOTO);
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [coverPhoto, setCoverPhoto] = useState<string>('');
   const [whatsapp, setWhatsapp] = useState<string>(DEFAULT_WHATSAPP);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -47,11 +45,11 @@ export const EditListing: React.FC<EditListingProps> = ({ onSaved, onClose }) =>
           );
           if (paulPlace && isMounted) {
             setListing(paulPlace);
-            setCoverPhoto(paulPlace.image || DEFAULT_PROFILE_PHOTO);
+            setCoverPhoto(paulPlace.image || '');
             setPhotos(
               paulPlace.gallery && paulPlace.gallery.length > 0
                 ? paulPlace.gallery
-                : [paulPlace.image || DEFAULT_PROFILE_PHOTO]
+                : (paulPlace.image ? [paulPlace.image] : [])
             );
             setWhatsapp(paulPlace.whatsapp || DEFAULT_WHATSAPP);
           }
@@ -179,16 +177,13 @@ export const EditListing: React.FC<EditListingProps> = ({ onSaved, onClose }) =>
     const newPhotos = photos.filter((_, i) => i !== index);
     setPhotos(newPhotos);
     if (coverPhoto === photoToRemove) {
-      setCoverPhoto(newPhotos[0] || DEFAULT_PROFILE_PHOTO);
+      setCoverPhoto(newPhotos[0] || '');
     }
   };
 
-  const handleRestoreDefaultPhoto = () => {
-    setCoverPhoto(DEFAULT_PROFILE_PHOTO);
-    if (!photos.includes(DEFAULT_PROFILE_PHOTO)) {
-      setPhotos([DEFAULT_PROFILE_PHOTO, ...photos]);
-    }
-    setSuccessMessage('Paul GSM profile photo restored!');
+  const handleRemoveCoverPhoto = () => {
+    setCoverPhoto('');
+    setSuccessMessage('Cover photo cleared.');
     setTimeout(() => setSuccessMessage(null), 3000);
   };
 
@@ -200,8 +195,8 @@ export const EditListing: React.FC<EditListingProps> = ({ onSaved, onClose }) =>
     try {
       const token = getAdminToken();
       const payload: Partial<Place> = {
-        image: coverPhoto || DEFAULT_PROFILE_PHOTO,
-        gallery: photos.length > 0 ? photos : [coverPhoto || DEFAULT_PROFILE_PHOTO],
+        image: coverPhoto || '',
+        gallery: photos,
         whatsapp: whatsapp.trim() || DEFAULT_WHATSAPP
       };
 
@@ -327,13 +322,15 @@ export const EditListing: React.FC<EditListingProps> = ({ onSaved, onClose }) =>
             <ImageIcon className="w-5 h-5 text-[#FFC928]" />
             <h2 className="font-bold text-white text-sm uppercase">Main Cover Photo *</h2>
           </div>
-          <button
-            type="button"
-            onClick={handleRestoreDefaultPhoto}
-            className="flex items-center gap-1.5 text-xs text-amber-300 hover:text-amber-200 bg-amber-500/10 hover:bg-amber-500/20 px-3 py-1.5 rounded-lg transition"
-          >
-            <RotateCcw className="w-3.5 h-3.5" /> Restore Official Profile Photo
-          </button>
+          {coverPhoto && (
+            <button
+              type="button"
+              onClick={handleRemoveCoverPhoto}
+              className="flex items-center gap-1.5 text-xs text-rose-300 hover:text-rose-200 bg-rose-500/10 hover:bg-rose-500/20 px-3 py-1.5 rounded-lg transition"
+            >
+              <Trash2 className="w-3.5 h-3.5" /> Remove Cover Photo
+            </button>
+          )}
         </div>
 
         {coverPhoto ? (
@@ -341,7 +338,7 @@ export const EditListing: React.FC<EditListingProps> = ({ onSaved, onClose }) =>
             <img src={coverPhoto} alt="Main Cover" className="w-full h-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end justify-between p-3">
               <span className="text-xs font-bold text-white bg-black/70 px-2.5 py-1 rounded-md">
-                Active Cover: {coverPhoto}
+                Active Cover Photo
               </span>
             </div>
           </div>
@@ -368,13 +365,15 @@ export const EditListing: React.FC<EditListingProps> = ({ onSaved, onClose }) =>
           >
             <Upload className="w-4 h-4" /> Upload New Cover Photo
           </button>
-          <button
-            type="button"
-            onClick={handleRestoreDefaultPhoto}
-            className="px-4 py-3 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl transition text-sm flex items-center justify-center gap-2"
-          >
-            <RotateCcw className="w-4 h-4" /> Restore Profile Photo
-          </button>
+          {coverPhoto && (
+            <button
+              type="button"
+              onClick={handleRemoveCoverPhoto}
+              className="px-4 py-3 bg-white/10 hover:bg-white/20 text-rose-300 hover:text-white font-bold rounded-xl transition text-sm flex items-center justify-center gap-2"
+            >
+              <Trash2 className="w-4 h-4" /> Clear Photo
+            </button>
+          )}
         </div>
       </div>
 

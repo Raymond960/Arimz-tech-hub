@@ -529,7 +529,7 @@ export const JobsSection: React.FC<JobsSectionProps> = () => {
                 Verified Status:{' '}
                 <strong className="text-slate-700 dark:text-slate-200">
                   {selectedOpp.verificationStatus === 'verified'
-                    ? `Verified by ${selectedOpp.verifiedBy || 'LGA Administrator'}`
+                    ? `Verified by ${selectedOpp.verifiedBy || 'Shendam Connect Admin'}`
                     : 'Unverified - Exercise caution'}
                 </strong>
               </span>

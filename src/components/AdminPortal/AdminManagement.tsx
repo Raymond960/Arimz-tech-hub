@@ -215,7 +215,7 @@ export const AdminManagement: React.FC<AdminManagementProps> = ({
     setFormName('');
     setFormEmail('');
     setFormRole('CONTENT_ADMIN');
-    setFormTitle('LGA Administrative Staff');
+    setFormTitle('Shendam Connect Staff Admin');
     setFormPassword('');
     setFormConfirmPassword('');
     setFormStatus('active');
@@ -262,7 +262,7 @@ export const AdminManagement: React.FC<AdminManagementProps> = ({
           name: formName.trim(),
           email: formEmail.trim().toLowerCase(),
           role: formRole,
-          title: formTitle.trim() || 'LGA Administrative Staff',
+          title: formTitle.trim() || 'Shendam Connect Staff Admin',
           password: formSendInvite ? undefined : formPassword,
           status: formStatus,
           sendInvite: formSendInvite

@@ -169,7 +169,7 @@ export const AdminAdvertisements: React.FC<AdminAdvertisementsProps> = ({
     setFormTitle('');
     setFormBusinessName('');
     setFormDescription('Special promotion for Shendam residents and visitors.');
-    setFormImageUrl('https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=800&q=80');
+    setFormImageUrl('');
     setFormBannerImageUrl('');
     setFormDestinationType('url');
     setFormDestinationUrl('https://shendamconnect.gov.ng');
@@ -510,7 +510,7 @@ export const AdminAdvertisements: React.FC<AdminAdvertisementsProps> = ({
             </h2>
           </div>
           <p className="text-xs text-[#D5DCE8] mt-1">
-            Manage local sponsored business listings, packages, Paystack automated checkout, and Google Adsense integration.
+            Manage local sponsored business listings, packages, direct payment reconciliation, and Google Ads integration.
           </p>
         </div>
 

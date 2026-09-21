@@ -11,11 +11,15 @@ import {
   MessageSquarePlus,
   Briefcase,
   Sun,
-  Moon
+  Moon,
+  LogIn,
+  LogOut,
+  UserCheck
 } from 'lucide-react';
 import { TabId, FeedbackType } from '../types';
 import { useTheme } from '../context/ThemeContext';
 import { useAppBranding } from '../hooks/useAppBranding';
+import { useUserAuth } from '../context/UserAuthContext';
 import { BrandLogoImage } from './BrandLogoImage';
 
 interface SideMenuDrawerProps {
@@ -37,6 +41,7 @@ export const SideMenuDrawer: React.FC<SideMenuDrawerProps> = ({
 }) => {
   const { theme, toggleTheme } = useTheme();
   const { homepageLogo } = useAppBranding();
+  const { currentUser, isAuthenticated, openAuthModal, logoutUser } = useUserAuth();
   const [logoError, setLogoError] = React.useState(false);
 
   React.useEffect(() => {
@@ -85,8 +90,54 @@ export const SideMenuDrawer: React.FC<SideMenuDrawerProps> = ({
             </button>
           </div>
 
+          {/* User Account / Sign In Status */}
+          <div className="mt-4 p-3 rounded-2xl bg-[#08254D] border border-white/10 flex items-center justify-between">
+            {isAuthenticated && currentUser ? (
+              <div className="flex items-center gap-2.5 overflow-hidden">
+                <div className="w-8 h-8 rounded-full bg-[#FFC928]/20 border border-[#FFC928]/40 flex items-center justify-center text-[#FFC928] font-bold text-xs shrink-0">
+                  {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-bold text-white truncate flex items-center gap-1">
+                    <span>{currentUser.name || 'Resident'}</span>
+                    <UserCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  </div>
+                  <div className="text-[10px] text-[#9BAABD] truncate">{currentUser.email}</div>
+                </div>
+                <button
+                  onClick={() => logoutUser()}
+                  title="Sign Out"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-white/10 transition cursor-pointer shrink-0"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between w-full">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-slate-300">
+                    <LogIn className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-white">Account</div>
+                    <div className="text-[10px] text-[#9BAABD]">Join Shendam Connect</div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    onClose();
+                    openAuthModal('signin');
+                  }}
+                  className="px-2.5 py-1 bg-[#FFC928] hover:bg-[#F5B800] text-[#061B3A] font-bold text-[11px] rounded-lg shadow cursor-pointer transition"
+                >
+                  Sign In
+                </button>
+              </div>
+            )}
+          </div>
+
           {/* Navigation Links */}
-          <div className="space-y-1.5 mt-5">
+          <div className="space-y-1.5 mt-4">
             <button
               onClick={() => navigate('home')}
               className="w-full flex items-center gap-3.5 px-3.5 py-3 rounded-xl hover:bg-white/10 text-[#D5DCE8] hover:text-white transition cursor-pointer text-sm font-semibold side-menu-nav-link"
@@ -161,10 +212,10 @@ export const SideMenuDrawer: React.FC<SideMenuDrawerProps> = ({
             >
               <div className="flex items-center gap-3.5">
                 <Shield className="w-5 h-5 text-[#FFC928] stroke-[2] side-menu-nav-icon shrink-0" />
-                <span className="side-menu-admin-title">Admin Management Portal</span>
+                <span className="side-menu-admin-title">Shendam Connect Admin</span>
               </div>
               <span className="bg-[#FFC928] text-[#061B3A] text-[9px] font-black px-1.5 py-0.5 rounded uppercase shrink-0 side-menu-lga-badge">
-                LGA
+                ADMIN
               </span>
             </button>
           </div>

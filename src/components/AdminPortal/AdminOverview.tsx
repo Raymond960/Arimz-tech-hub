@@ -69,14 +69,14 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-black uppercase tracking-wider bg-[#FFC928]/15 border border-[#FFC928]/30 text-[#FFC928] px-2.5 py-1 rounded-full inline-flex items-center gap-1.5">
                 <ShieldCheck className="w-3 h-3" />
-                <span>Shendam LGA Digital Command Center</span>
+                <span>Shendam Connect Command Center</span>
               </span>
             </div>
             <h1 className="text-xl sm:text-2xl font-black text-white font-brand-sans tracking-tight">
               Portal Overview & Live Control
             </h1>
             <p className="text-xs text-[#D5DCE8] max-w-xl leading-relaxed">
-              Real-time monitoring of Shendam LGA hospitality, local commercial directories, tourist attractions, and visitor reservations.
+              Real-time monitoring of Shendam hospitality, local commercial directories, tourist attractions, and visitor reservations.
             </p>
           </div>
 

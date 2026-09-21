@@ -185,7 +185,7 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
                 Feedback & Feature Requests
               </h2>
               <p className="text-xs text-[#9BAABD]">
-                Direct line to Shendam LGA administration & ICT team
+                Direct line to Shendam Connect administration & ICT team
               </p>
             </div>
           </div>
@@ -213,7 +213,7 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
                   Submission Received!
                 </h3>
                 <p className="text-xs text-[#9BAABD] mt-1 max-w-sm mx-auto">
-                  Thank you for helping us improve Shendam Connect. Your ticket has been logged directly into the LGA administrative queue.
+                  Thank you for helping us improve Shendam Connect. Your ticket has been logged directly into the administrative review queue.
                 </p>
               </div>
 
@@ -229,7 +229,7 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
                 <div className="flex items-center justify-between text-[#9BAABD]">
                   <span>Status:</span>
                   <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30">
-                    Pending LGA Review
+                    Pending Review
                   </span>
                 </div>
               </div>
@@ -362,7 +362,7 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
                       ? 'Please describe how this feature would help tourists, residents, or local businesses in Shendam...'
                       : feedbackType === 'issue_report'
                       ? 'Please share what happened, what place or page had the error, and any correct info...'
-                      : 'Share your thoughts, recommendations, or ideas with the LGA team...'
+                      : 'Share your thoughts, recommendations, or ideas with the Shendam Connect team...'
                   }
                   className="w-full bg-[#08254D] border border-white/16 rounded-2xl p-3.5 text-xs text-white placeholder:text-white/30 focus:outline-none focus:border-[#FFC928] resize-none leading-relaxed"
                   required
@@ -429,7 +429,7 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
                   {isSubmitting ? (
                     <>
                       <div className="w-4 h-4 border-2 border-[#061B3A] border-t-transparent rounded-full animate-spin" />
-                      <span>Transmitting to LGA Queue...</span>
+                      <span>Transmitting Feedback...</span>
                     </>
                   ) : (
                     <>

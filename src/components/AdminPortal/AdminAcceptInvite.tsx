@@ -111,7 +111,7 @@ export const AdminAcceptInvite: React.FC<AdminAcceptInviteProps> = ({
             <span>Shendam Connect Admin</span>
           </div>
           <h1 className="text-2xl font-black text-white tracking-tight">Accept Invitation</h1>
-          <p className="text-xs text-[#9BAABD] mt-1">Official Local Government Administrator Portal</p>
+          <p className="text-xs text-[#9BAABD] mt-1">Private Community Portal</p>
         </div>
 
         {loading && (

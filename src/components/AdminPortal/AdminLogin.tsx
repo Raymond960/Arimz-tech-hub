@@ -58,8 +58,8 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBackTo
           <h1 className="text-2xl font-black tracking-tight text-white font-brand-sans">
             Shendam Connect
           </h1>
-          <p className="text-xs font-semibold text-[#9BAABD] tracking-wider uppercase">
-            Official LGA Management & Admin Portal
+          <p className="text-xs font-semibold text-[#FFC928] tracking-wider uppercase">
+            Shendam Connect Admin Portal
           </p>
         </div>
 
@@ -125,7 +125,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBackTo
               <span>Verifying Admin Credentials...</span>
             ) : (
               <>
-                <span>Sign In to Admin Portal</span>
+                <span>Sign In as Shendam Connect Admin</span>
                 <ArrowRight className="w-4 h-4 stroke-[2.5]" />
               </>
             )}
@@ -144,8 +144,8 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBackTo
       </div>
 
       <div className="mt-6 text-center text-xs text-[#9BAABD]/80">
-        <p>Shendam Local Government Area • Digital Tourism Portal</p>
-        <p className="text-[10px] mt-1 text-[#9BAABD]/60">Authorized Administrative Personnel Only</p>
+        <p>Shendam Connect • Digital Tourism & Commerce Platform</p>
+        <p className="text-[10px] mt-1 text-[#9BAABD]/60">Authorized Shendam Connect Administrators Only</p>
       </div>
     </div>
   );

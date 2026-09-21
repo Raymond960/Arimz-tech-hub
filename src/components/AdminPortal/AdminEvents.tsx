@@ -82,16 +82,16 @@ export const AdminEvents: React.FC<AdminEventsProps> = ({ authToken, onSessionEx
     setEditingEvent(null);
     setFormTitle('');
     setFormCategory('Cultural & Festivals');
-    setFormDate('Nov 28 - Dec 02, 2025');
-    setFormTime('10:00 AM Daily');
-    setFormLocation('Shendam Township Stadium, Shendam LGA');
-    setFormImage('https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=800&q=80');
-    setFormDescription('Grand cultural festival celebrating Goemai heritage, royal dances, and agricultural exhibition.');
-    setFormTag('Grand Festival');
-    setFormOrganizer('Shendam Traditional Council');
-    setFormFeatured(true);
+    setFormDate('');
+    setFormTime('');
+    setFormLocation('');
+    setFormImage('');
+    setFormDescription('');
+    setFormTag('');
+    setFormOrganizer('');
+    setFormFeatured(false);
     setFormStatus('published');
-    setFormAttendees(250);
+    setFormAttendees(50);
     setIsModalOpen(true);
   };
 
@@ -180,7 +180,7 @@ export const AdminEvents: React.FC<AdminEventsProps> = ({ authToken, onSessionEx
       date: formDate.trim(),
       time: formTime.trim(),
       location: formLocation.trim(),
-      image: formImage.trim() || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=800&q=80',
+      image: formImage.trim() || '',
       description: formDescription.trim(),
       tag: formTag.trim(),
       organizer: formOrganizer.trim(),

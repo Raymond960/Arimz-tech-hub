@@ -3,6 +3,7 @@ import { Menu, Bell } from 'lucide-react';
 import { useAppBranding } from '../hooks/useAppBranding';
 import { ThemeToggle } from './ThemeToggle';
 import { BrandLogoImage } from './BrandLogoImage';
+import { getSeasonalThemeDetails } from '../utils/seasonalThemes';
 
 interface HeaderProps {
   onOpenMenu: () => void;
@@ -15,7 +16,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenNotifications,
   unreadCount = 2
 }) => {
-  const { homepageLogo } = useAppBranding();
+  const { homepageLogo, seasonal } = useAppBranding();
+  const seasonalDetails = getSeasonalThemeDetails(seasonal);
 
   return (
     <header className="relative w-full px-4 sm:px-5 pt-1.5 pb-2.5 flex items-center justify-between z-20">
@@ -39,8 +41,22 @@ export const Header: React.FC<HeaderProps> = ({
             />
           </div>
           <div className="flex flex-col">
-            <div className="text-[#FFC928] font-black text-sm sm:text-base tracking-[0.14em] uppercase leading-none font-brand-sans drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
-              SHENDAM
+            <div className="flex items-center gap-1.5">
+              <span className="text-[#FFC928] font-black text-sm sm:text-base tracking-[0.14em] uppercase leading-none font-brand-sans drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
+                SHENDAM
+              </span>
+              {seasonalDetails.isActive && seasonalDetails.showBadge && (
+                <span
+                  title={seasonalDetails.title}
+                  className="inline-flex items-center px-1.5 py-0.2 rounded-full text-[10px] font-black shadow-sm border border-white/20 animate-pulse"
+                  style={{
+                    backgroundColor: `${seasonalDetails.accentColor}30`,
+                    color: seasonalDetails.accentColor
+                  }}
+                >
+                  {seasonalDetails.theme.icon}
+                </span>
+              )}
             </div>
             <div className="text-white font-extrabold text-[9px] sm:text-[10px] tracking-[0.28em] uppercase leading-none mt-0.5 font-brand-sans">
               CONNECT

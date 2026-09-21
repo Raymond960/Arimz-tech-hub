@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Place, CategoryId, HotelRoom, MenuItem } from '../../types';
 import { compressAndValidateImage } from '../../utils/imageCompressor';
+import { AdminMapLocationPicker } from './AdminMapLocationPicker';
 import {
   X,
   Building2,
@@ -139,8 +140,13 @@ export const AdminModalPlaceForm: React.FC<AdminModalPlaceFormProps> = ({
   const [priceDetails, setPriceDetails] = useState('');
 
   // Location & Map
-  const [lat, setLat] = useState('8.877');
-  const [lng, setLng] = useState('9.506');
+  const [lat, setLat] = useState<number | null>(null);
+  const [lng, setLng] = useState<number | null>(null);
+  const [landmark, setLandmark] = useState('');
+  const [lga, setLga] = useState('Shendam');
+  const [stateName, setStateName] = useState('Plateau State');
+  const [country, setCountry] = useState('Nigeria');
+  const [mapUrl, setMapUrl] = useState('');
   const [directionsUrl, setDirectionsUrl] = useState('');
 
   // Status & Badges
@@ -279,9 +285,14 @@ export const AdminModalPlaceForm: React.FC<AdminModalPlaceFormProps> = ({
       setEmergencyHotline(initialData.emergencyHotline || initialData.phone || '');
       setAmbulanceAvailable(initialData.ambulanceAvailable ?? false);
 
-      setLat(initialData.coordinates?.lat ? String(initialData.coordinates.lat) : '8.877');
-      setLng(initialData.coordinates?.lng ? String(initialData.coordinates.lng) : '9.506');
-      setDirectionsUrl(initialData.directionsUrl || '');
+      setLat(initialData.coordinates?.lat !== undefined && initialData.coordinates?.lat !== null ? initialData.coordinates.lat : null);
+      setLng(initialData.coordinates?.lng !== undefined && initialData.coordinates?.lng !== null ? initialData.coordinates.lng : null);
+      setLandmark(initialData.landmark || '');
+      setLga(initialData.lga || 'Shendam');
+      setStateName(initialData.state || 'Plateau State');
+      setCountry(initialData.country || 'Nigeria');
+      setMapUrl(initialData.mapUrl || initialData.map_url || '');
+      setDirectionsUrl(initialData.directionsUrl || initialData.directions_url || '');
 
       // Load Payment Details if present
       if (initialData.paymentDetails) {
@@ -308,6 +319,14 @@ export const AdminModalPlaceForm: React.FC<AdminModalPlaceFormProps> = ({
       setOwner('');
       setArea('Shendam Central');
       setAddress('Shendam Town, Plateau State');
+      setLandmark('');
+      setLga('Shendam');
+      setStateName('Plateau State');
+      setCountry('Nigeria');
+      setLat(null);
+      setLng(null);
+      setMapUrl('');
+      setDirectionsUrl('');
       setPhone('+234 ');
       setWhatsapp('+234 ');
       setOpeningHours('8:00 AM - 6:00 PM (Mon - Sat)');
@@ -357,8 +376,8 @@ export const AdminModalPlaceForm: React.FC<AdminModalPlaceFormProps> = ({
         setMenuItems([]);
       }
 
-      setLat('8.877');
-      setLng('9.506');
+      setLat(null);
+      setLng(null);
       setDirectionsUrl('');
     }
     setErrorMsg(null);
@@ -899,6 +918,17 @@ export const AdminModalPlaceForm: React.FC<AdminModalPlaceFormProps> = ({
         cleanPaymentDetails = null;
       }
 
+      const numLat = lat !== null && lat !== undefined ? Number(lat) : NaN;
+      const numLng = lng !== null && lng !== undefined ? Number(lng) : NaN;
+      const cleanLat = !isNaN(numLat) ? numLat : undefined;
+      const cleanLng = !isNaN(numLng) ? numLng : undefined;
+      const validCoordinates = (cleanLat !== undefined && cleanLng !== undefined && cleanLat >= -90 && cleanLat <= 90 && cleanLng >= -180 && cleanLng <= 180 && (cleanLat !== 0 || cleanLng !== 0))
+        ? { lat: cleanLat, lng: cleanLng }
+        : undefined;
+
+      const autoMapUrl = mapUrl.trim() || (validCoordinates ? `https://www.google.com/maps?q=${validCoordinates.lat},${validCoordinates.lng}` : '');
+      const autoDirectionsUrl = directionsUrl.trim() || (validCoordinates ? `https://www.google.com/maps/dir/?api=1&destination=${validCoordinates.lat},${validCoordinates.lng}` : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(name.trim() + ' ' + address.trim())}`);
+
       const finalPlaceData: Partial<Place> = {
         name: name.trim(),
         category,
@@ -906,6 +936,10 @@ export const AdminModalPlaceForm: React.FC<AdminModalPlaceFormProps> = ({
         owner: owner.trim(),
         area: area.trim(),
         address: address.trim() || `${area}, Shendam LGA, Plateau State`,
+        landmark: landmark.trim() || undefined,
+        lga: lga.trim() || 'Shendam',
+        state: stateName.trim() || 'Plateau State',
+        country: country.trim() || 'Nigeria',
         phone: phone.trim(),
         whatsapp: whatsapp.trim(),
         openingHours: openingHours.trim(),
@@ -934,11 +968,11 @@ export const AdminModalPlaceForm: React.FC<AdminModalPlaceFormProps> = ({
         deliveryAvailable,
         emergencyHotline: emergencyHotline.trim() || undefined,
         ambulanceAvailable,
-        coordinates: {
-          lat: parseFloat(lat) || 8.877,
-          lng: parseFloat(lng) || 9.506
-        },
-        directionsUrl: directionsUrl.trim() || `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(name.trim() + ' ' + address.trim())}`,
+        coordinates: validCoordinates,
+        mapUrl: autoMapUrl || undefined,
+        map_url: autoMapUrl || undefined,
+        directionsUrl: autoDirectionsUrl || undefined,
+        directions_url: autoDirectionsUrl || undefined,
         paymentDetails: cleanPaymentDetails as any
       };
 
@@ -1598,124 +1632,33 @@ export const AdminModalPlaceForm: React.FC<AdminModalPlaceFormProps> = ({
 
           {/* TAB 3: LOCATION & MAP */}
           {activeTab === 'location' && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-[#9BAABD] mb-1">
-                    Street / Physical Address *
-                  </label>
-                  <div className="relative">
-                    <MapPin className="w-3.5 h-3.5 text-[#FFC928] absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. KM 2, Kalong Road, Dungpit, Shendam"
-                      value={address}
-                      onChange={(e) => setAddress(e.target.value)}
-                      className="w-full bg-[#08254D] border border-white/14 rounded-2xl pl-9 pr-3.5 py-2.5 text-xs text-white placeholder-[#9BAABD] outline-none focus:border-[#FFC928]"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-[#9BAABD] mb-1">
-                    Shendam District / Area *
-                  </label>
-                  <select
-                    value={area}
-                    onChange={(e) => setArea(e.target.value)}
-                    className="w-full bg-[#08254D] border border-white/14 rounded-2xl px-3.5 py-2.5 text-xs text-white outline-none focus:border-[#FFC928]"
-                  >
-                    {SHENDAM_AREAS.map((a) => (
-                      <option key={a} value={a}>
-                        {a}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Coordinates & Presets */}
-              <div className="bg-[#08254D] border border-white/12 rounded-3xl p-4 space-y-3">
-                <div>
-                  <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                    <Compass className="w-4 h-4 text-[#FFC928]" />
-                    <span>Map Coordinates (Latitude / Longitude)</span>
-                  </h4>
-                  <p className="text-[11px] text-[#9BAABD]">
-                    Pinpoints listing on interactive map navigation in Shendam.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-[#9BAABD] mb-1">
-                      Latitude
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="8.877"
-                      value={lat}
-                      onChange={(e) => setLat(e.target.value)}
-                      className="w-full bg-[#051C3D] border border-white/14 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-[#FFC928]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-[#9BAABD] mb-1">
-                      Longitude
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="9.506"
-                      value={lng}
-                      onChange={(e) => setLng(e.target.value)}
-                      className="w-full bg-[#051C3D] border border-white/14 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-[#FFC928]"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-[#9BAABD] mb-1.5">
-                    Quick Area Coordinate Presets:
-                  </label>
-                  <div className="flex flex-wrap gap-1.5">
-                    {PRESET_COORDINATES.map((preset) => (
-                      <button
-                        key={preset.label}
-                        type="button"
-                        onClick={() => {
-                          setLat(String(preset.lat));
-                          setLng(String(preset.lng));
-                          setArea(preset.label);
-                        }}
-                        className="text-[10px] font-bold px-2.5 py-1 rounded-xl bg-white/8 hover:bg-[#FFC928] hover:text-[#04142F] transition border border-white/10 cursor-pointer"
-                      >
-                        📍 {preset.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Directions URL */}
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-[#9BAABD] mb-1 flex items-center justify-between">
-                  <span>Google Maps "Get Directions" URL</span>
-                  <span className="text-[10px] text-[#9BAABD] font-normal">Auto-generated if empty</span>
-                </label>
-                <div className="relative">
-                  <ExternalLink className="w-3.5 h-3.5 text-[#FFC928] absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="url"
-                    placeholder="https://www.google.com/maps/dir/..."
-                    value={directionsUrl}
-                    onChange={(e) => setDirectionsUrl(e.target.value)}
-                    className="w-full bg-[#08254D] border border-white/14 rounded-2xl pl-9 pr-3.5 py-2.5 text-xs text-white placeholder-[#9BAABD] outline-none focus:border-[#FFC928]"
-                  />
-                </div>
-              </div>
-            </div>
+            <AdminMapLocationPicker
+              locationData={{
+                address,
+                area,
+                landmark,
+                lga,
+                state: stateName,
+                country,
+                lat,
+                lng,
+                mapUrl,
+                directionsUrl
+              }}
+              onChange={(updated) => {
+                if (updated.address !== undefined) setAddress(updated.address);
+                if (updated.area !== undefined) setArea(updated.area);
+                if (updated.landmark !== undefined) setLandmark(updated.landmark);
+                if (updated.lga !== undefined) setLga(updated.lga);
+                if (updated.state !== undefined) setStateName(updated.state);
+                if (updated.country !== undefined) setCountry(updated.country);
+                if (updated.lat !== undefined) setLat(updated.lat);
+                if (updated.lng !== undefined) setLng(updated.lng);
+                if (updated.mapUrl !== undefined) setMapUrl(updated.mapUrl);
+                if (updated.directionsUrl !== undefined) setDirectionsUrl(updated.directionsUrl);
+              }}
+              listingName={name}
+            />
           )}
 
           {/* TAB 4: CATEGORY SPECIFIC OFFERINGS & PRICING */}

@@ -6,14 +6,14 @@ export const HERO_SLIDES: HeroSlide[] = [
     tagline: 'Discover',
     title: 'SHENDAM CONNECT',
     description: 'The official verified directory of local businesses, hotels, services, and opportunities in Shendam LGA.',
-    image: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=80'
+    image: ''
   },
   {
     id: 'hero-2',
     tagline: 'Stay',
     title: 'DREAMS HOTEL',
     description: 'Experience high standard hospitality, standby power, and comfortable luxury along Kalong Road, Dungpit.',
-    image: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=80',
+    image: '',
     categoryTarget: 'hotels'
   },
   {
@@ -21,7 +21,7 @@ export const HERO_SLIDES: HeroSlide[] = [
     tagline: 'Repair & Accessories',
     title: 'PAUL GSM SERVICES',
     description: 'Professional mobile phone repair, genuine parts, and quality accessories managed by Raymond Paul at Lu\'uriemdet Plaza.',
-    image: 'https://images.unsplash.com/photo-1581092921461-eab62e97a780?auto=format&fit=crop&w=1200&q=80',
+    image: '',
     categoryTarget: 'services'
   }
 ];
@@ -34,13 +34,8 @@ export const POPULAR_PLACES: Place[] = [
     categoryLabel: 'Hotel',
     rating: 0,
     reviewsCount: 0,
-    image: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=800&q=80',
-    gallery: [
-      'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1591088398332-8a7791972843?auto=format&fit=crop&w=800&q=80'
-    ],
+    image: '',
+    gallery: [],
     address: 'KM 2, Kalong Road, Dungpit, Shendam LGA, Plateau State, Nigeria',
     area: 'KM 2, Kalong Road, Dungpit',
     description: 'Welcome to Dreams Hotel, located along Kalong Road in Dungpit, Shendam. Experience high standard hospitality with modern, comfortable rooms, private balconies, standby power, and comprehensive guest services tailored for travelers, tourists, and business visitors in Shendam.',
@@ -86,8 +81,7 @@ export const POPULAR_PLACES: Place[] = [
         description: 'VIP executive suite offering an expansive living area, mini bar, private balcony with scenic views, and dedicated care.'
       }
     ],
-    coordinates: { lat: 8.877, lng: 9.506 },
-    mapPosition: { x: 45, y: 40 },
+    coordinates: { lat: 8.8625, lng: 9.5070 },
     reviews: [],
     paymentDetails: {
       accountName: 'Dreams Hotel Shendam Ltd',
@@ -107,12 +101,8 @@ export const POPULAR_PLACES: Place[] = [
     categoryLabel: 'Hotel',
     rating: 0,
     reviewsCount: 0,
-    image: 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=800&q=80',
-    gallery: [
-      'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=800&q=80'
-    ],
+    image: '',
+    gallery: [],
     address: 'No details available yet.',
     area: 'Shendam Town',
     description: 'No information available yet.',
@@ -125,7 +115,6 @@ export const POPULAR_PLACES: Place[] = [
     popular: true,
     amenities: ['No details available yet.'],
     coordinates: { lat: 8.873, lng: 9.502 },
-    mapPosition: { x: 38, y: 48 },
     reviews: []
   },
   {
@@ -135,11 +124,8 @@ export const POPULAR_PLACES: Place[] = [
     categoryLabel: 'Phone Repair & Mobile Accessories',
     rating: 0,
     reviewsCount: 0,
-    image: '/images/paul_gsm_profile.jpg',
-    gallery: [
-      '/images/paul_gsm_profile.jpg',
-      '/images/paul_gsm_interior.jpg'
-    ],
+    image: '',
+    gallery: [],
     address: "No. 10 Shop, Lu'uriemdet Plaza, Along Kalong Road, Texas, Shendam LGA, Plateau State, Nigeria.",
     area: "No. 10 Shop, Lu'uriemdet Plaza, Along Kalong Road, Texas, Shendam LGA",
     description: "Conveniently located at Lu'uriemdet Plaza, Shop No. 10 along Kalong Road, Texas, Shendam LGA. Managed by Raymond Paul. Customers can visit the shop for professional mobile phone repairs, replacement parts, hardware diagnostics, and quality smartphone accessories.",
@@ -208,10 +194,6 @@ export const POPULAR_PLACES: Place[] = [
       lat: 8.8768,
       lng: 9.5055
     },
-    mapPosition: {
-      x: 46,
-      y: 42
-    },
     reviews: []
   }
 ];
@@ -225,7 +207,7 @@ export const EXPLORE_TOPICS = [
     subtitle: 'Waterfalls, hills & scenic trails',
     count: 'Scenic Spots',
     targetCategory: 'tourist_spots' as const,
-    image: 'https://images.unsplash.com/photo-1432405972618-c60b0225b8f9?auto=format&fit=crop&w=800&q=80'
+    image: ''
   },
   {
     id: 'stay',
@@ -233,7 +215,7 @@ export const EXPLORE_TOPICS = [
     subtitle: 'Hotels, lodges & executive suites',
     count: 'Verified Lodges',
     targetCategory: 'hotels' as const,
-    image: 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80'
+    image: ''
   },
   {
     id: 'food',
@@ -241,7 +223,7 @@ export const EXPLORE_TOPICS = [
     subtitle: 'Goemai tuwo, suya & fresh grills',
     count: 'Local Dining',
     targetCategory: 'restaurants' as const,
-    image: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=800&q=80'
+    image: ''
   },
   {
     id: 'culture',
@@ -249,7 +231,7 @@ export const EXPLORE_TOPICS = [
     subtitle: 'Long Goemai palace & historic sites',
     count: 'Historic',
     targetCategory: 'tourist_spots' as const,
-    image: 'https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?auto=format&fit=crop&w=800&q=80'
+    image: ''
   }
 ];
 
@@ -263,7 +245,27 @@ export const INITIAL_ADMIN_SETTINGS = {
   platformName: 'Shendam Connect',
   supportEmail: 'admin@shendamconnect.gov.ng',
   supportPhone: '+234 803 000 7436',
+  supportWhatsapp: '+234 803 000 7436',
+  supportHours: 'Mon - Sat: 8:00 AM - 6:00 PM',
+  supportDescription: 'Need assistance with your business listing, bookings, or community inquiries? Reach our dedicated support team.',
   lgaOfficeAddress: 'Shendam LGA Secretariat, Commercial Road, Shendam, Plateau State',
+  lgaOfficialWebsiteUrl: '',
+  lgaOfficialWebsiteLabel: 'Official Local Government Website',
+  lgaPublicInfoTitle: 'Shendam Local Government',
+  lgaPublicInfoDescription: 'Official public and community information for Shendam Local Government Area, Plateau State. Shendam serves as the headquarters of Plateau South Senatorial District and the ancestral seat of Goemai heritage.',
+  lgaStateRegion: 'Plateau State, Nigeria',
+  lgaBadgeText: 'Public Info',
+  lgaProfileImage: '/uploads/logo_1789610605536_d4d7bb92.webp',
+  lgaCultureTitle: 'Goemai Heritage & Monarch',
+  lgaCultureDescription: 'Shendam is the traditional seat of the Long Goemai, supreme ruler of the Goemai Kingdom. Renowned for rich agricultural produce (yam, rice, sesame) and vibrant traditional festivals including the famous Bit Goemai celebration.',
+  emergencyHotlinesTitle: 'Emergency Hotlines',
+  emergencyHotlinesBadge: '24/7 Response',
+  emergencyPhone1Label: 'National Emergency',
+  emergencyPhone1Number: '112',
+  emergencyPhone1Display: 'Dial 112',
+  emergencyPhone2Label: 'General Hospital',
+  emergencyPhone2Number: '+2348039110000',
+  emergencyPhone2Display: '+234 803 911 0000',
   activeHeartbeatTimeoutSec: 90,
   currencySymbol: '₦',
   allowDirectBookings: true,

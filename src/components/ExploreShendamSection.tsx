@@ -32,13 +32,15 @@ export const ExploreShendamSection: React.FC<ExploreShendamSectionProps> = ({ on
             onClick={() => onSelectCategory(topic.targetCategory, topic.id === 'culture' ? 'Palace' : undefined)}
             className="group relative h-36 rounded-2xl overflow-hidden border border-white/16 hover:border-[#FFC928]/80 bg-[#0B2D5C] cursor-pointer shadow-lg transition-all duration-300 active:scale-98 flex flex-col justify-end p-3"
           >
-            {/* Background Image with Zoom on Hover */}
-            <LazyImage
-              src={topic.image}
-              alt={topic.title}
-              widthParam={400}
-              className="absolute inset-0 w-full h-full object-cover group-hover:scale-108 transition-transform duration-500"
-            />
+            {/* Background Image with Zoom on Hover if uploaded */}
+            {topic.image && topic.image.trim() ? (
+              <LazyImage
+                src={topic.image}
+                alt={topic.title}
+                widthParam={400}
+                className="absolute inset-0 w-full h-full object-cover group-hover:scale-108 transition-transform duration-500"
+              />
+            ) : null}
 
             {/* Dark & Gradient Overlay */}
             <div className="absolute inset-0 bg-gradient-to-t from-[#04142F] via-[#061B3A]/65 to-transparent z-10" />

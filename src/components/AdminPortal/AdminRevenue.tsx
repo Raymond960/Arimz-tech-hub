@@ -125,14 +125,14 @@ export const AdminRevenue: React.FC<AdminRevenueProps> = ({
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 px-2.5 py-1 rounded-full inline-flex items-center gap-1.5">
                 <Wallet className="w-3 h-3" />
-                <span>Shendam LGA Digital Economy & Finance</span>
+                <span>Shendam Connect Platform Economy & Ledger</span>
               </span>
             </div>
             <h1 className="text-xl sm:text-2xl font-black text-white font-brand-sans tracking-tight">
               Revenue & Financial Control
             </h1>
             <p className="text-xs text-[#D5DCE8] max-w-xl leading-relaxed">
-              Transparent tracking of hotel commissions, commercial advertisements, verified merchant fees, and sponsored tourism listings across Shendam Local Government Area.
+              Transparent tracking of booking records, commercial advertisements, verified merchant fees, and sponsored tourism listings on Shendam Connect.
             </p>
           </div>
 
@@ -173,7 +173,7 @@ export const AdminRevenue: React.FC<AdminRevenueProps> = ({
               <ArrowUpRight className="w-3 h-3" />
               <span>Active today</span>
             </span>
-            <span className="text-[#9BAABD]">Direct LGA settlement</span>
+            <span className="text-[#9BAABD]">Direct platform settlement</span>
           </div>
         </div>
 
@@ -279,7 +279,7 @@ export const AdminRevenue: React.FC<AdminRevenueProps> = ({
             <div className="text-xl font-black text-white font-brand-sans">
               ₦{revenue.premiumAccounts.toLocaleString()}
             </div>
-            <p className="text-[10px] text-[#9BAABD]">Verified LGA merchant tiers</p>
+            <p className="text-[10px] text-[#9BAABD]">Verified merchant listing tiers</p>
           </div>
           <div className="text-right">
             <span className="text-xs font-bold text-emerald-400 bg-emerald-500/15 px-2.5 py-1 rounded-lg border border-emerald-500/30">

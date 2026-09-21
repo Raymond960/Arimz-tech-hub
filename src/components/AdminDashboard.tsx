@@ -728,7 +728,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       body: JSON.stringify(newSettings)
     });
     if (!res.ok) throw new Error('Failed to save settings.');
-    setSettings(newSettings);
+    const data = await res.json().catch(() => ({}));
+    const updated = data.settings || newSettings;
+    setSettings(updated);
+    window.dispatchEvent(new CustomEvent('sc-settings-updated', { detail: updated }));
     showToast('Settings saved successfully.');
     fetchAllData();
   };
@@ -1095,10 +1098,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               )}
 
               {/* 22. SETTINGS & DB CONTROLS */}
-              {currentSection === 'settings' && (
+              {(currentSection === 'settings' || currentSection === 'shendam_lga') && (
                 <AdminSettingsView
                   settings={settings}
                   adminRole={adminUser.role}
+                  token={token}
+                  initialFocusSection={currentSection === 'shendam_lga' ? 'lga' : undefined}
                   onSaveSettings={handleSaveSettings}
                   onNavigateToAdmins={() => setCurrentSection('admin_management')}
                 />

@@ -116,8 +116,8 @@ export const ListBusinessModal: React.FC<ListBusinessModalProps> = ({
   const [landmark, setLandmark] = useState('');
   const [city] = useState('Shendam');
   const [lga] = useState('Shendam LGA, Plateau State, Nigeria');
-  const [lat, setLat] = useState('8.876');
-  const [lng, setLng] = useState('9.504');
+  const [lat, setLat] = useState('');
+  const [lng, setLng] = useState('');
 
   // Section C — Business Hours
   const [schedule, setSchedule] = useState<Record<DayKey, DaySchedule>>(DEFAULT_SCHEDULE);
@@ -354,9 +354,14 @@ export const ListBusinessModal: React.FC<ListBusinessModalProps> = ({
           price: p.price.trim() || undefined
         }));
 
-      // Parse coordinates
-      const latitudeNum = parseFloat(lat) || 8.876;
-      const longitudeNum = parseFloat(lng) || 9.504;
+      // Parse coordinates (only if provided)
+      const latTrimmed = lat.trim();
+      const lngTrimmed = lng.trim();
+      const latitudeNum = latTrimmed ? parseFloat(latTrimmed) : NaN;
+      const longitudeNum = lngTrimmed ? parseFloat(lngTrimmed) : NaN;
+      const validCoordinates = (!isNaN(latitudeNum) && !isNaN(longitudeNum) && latitudeNum >= -90 && latitudeNum <= 90 && longitudeNum >= -180 && longitudeNum <= 180 && (latitudeNum !== 0 || longitudeNum !== 0))
+        ? { lat: latitudeNum, lng: longitudeNum }
+        : undefined;
 
       const payload = {
         businessName: businessName.trim(),
@@ -376,7 +381,7 @@ export const ListBusinessModal: React.FC<ListBusinessModalProps> = ({
         landmark: landmark.trim() || undefined,
         city: city.trim(),
         lga: lga.trim(),
-        coordinates: { lat: latitudeNum, lng: longitudeNum },
+        coordinates: validCoordinates,
         operatingHours: schedule,
         productsServices: validProducts,
         details: {
@@ -894,25 +899,27 @@ export const ListBusinessModal: React.FC<ListBusinessModalProps> = ({
                   <div className="grid grid-cols-2 gap-3 bg-[#04142F]/60 p-3 rounded-xl border border-white/8 text-xs">
                     <div>
                       <label className="block text-[11px] font-bold text-[#9BAABD] mb-1">
-                        Map Latitude (Shendam default 8.876)
+                        Map Latitude (Optional GPS)
                       </label>
                       <input
                         type="text"
+                        placeholder="e.g. 8.8768"
                         value={lat}
                         onChange={(e) => setLat(e.target.value)}
-                        className="w-full bg-[#04142F] border border-white/14 rounded-lg p-2 text-xs text-white outline-none focus:border-[#FFC928]"
+                        className="w-full bg-[#04142F] border border-white/14 rounded-lg p-2 text-xs text-white placeholder-[#9BAABD]/60 outline-none focus:border-[#FFC928]"
                       />
                     </div>
 
                     <div>
                       <label className="block text-[11px] font-bold text-[#9BAABD] mb-1">
-                        Map Longitude (Shendam default 9.504)
+                        Map Longitude (Optional GPS)
                       </label>
                       <input
                         type="text"
+                        placeholder="e.g. 9.5055"
                         value={lng}
                         onChange={(e) => setLng(e.target.value)}
-                        className="w-full bg-[#04142F] border border-white/14 rounded-lg p-2 text-xs text-white outline-none focus:border-[#FFC928]"
+                        className="w-full bg-[#04142F] border border-white/14 rounded-lg p-2 text-xs text-white placeholder-[#9BAABD]/60 outline-none focus:border-[#FFC928]"
                       />
                     </div>
                   </div>

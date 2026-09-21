@@ -33,28 +33,33 @@ interface MapViewProps {
 
 // Coordinate calculation for Shendam bounding box
 function getMapCoordinates(place: Place): { x: number; y: number } | null {
-  if (!place.coordinates || typeof place.coordinates.lat !== 'number' || typeof place.coordinates.lng !== 'number') {
-    return null;
+  // Primary: Plot using actual saved latitude and longitude coordinates
+  if (place.coordinates) {
+    const rawLat = place.coordinates.lat;
+    const rawLng = place.coordinates.lng;
+    const lat = typeof rawLat === 'number' ? rawLat : parseFloat(String(rawLat));
+    const lng = typeof rawLng === 'number' ? rawLng : parseFloat(String(rawLng));
+
+    if (!isNaN(lat) && !isNaN(lng) && (lat !== 0 || lng !== 0) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+      // Geographic bounds for Shendam LGA Urban Center
+      const minLat = 8.850;
+      const maxLat = 8.905;
+      const minLng = 9.480;
+      const maxLng = 9.530;
+
+      const x = Math.min(Math.max(((lng - minLng) / (maxLng - minLng)) * 74 + 13, 8), 92);
+      const y = Math.min(Math.max((1 - (lat - minLat) / (maxLat - minLat)) * 74 + 13, 8), 92);
+
+      return { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 };
+    }
   }
 
-  const { lat, lng } = place.coordinates;
-  if (lat === 0 || lng === 0) return null;
-
-  // Use explicit mapPosition if set by listing
+  // Fallback only if no valid geographic coordinates exist
   if (place.mapPosition && typeof place.mapPosition.x === 'number' && typeof place.mapPosition.y === 'number') {
     return { x: place.mapPosition.x, y: place.mapPosition.y };
   }
 
-  // Geographic bounds for Shendam LGA Urban Center
-  const minLat = 8.850;
-  const maxLat = 8.905;
-  const minLng = 9.480;
-  const maxLng = 9.530;
-
-  const x = Math.min(Math.max(((lng - minLng) / (maxLng - minLng)) * 74 + 13, 8), 92);
-  const y = Math.min(Math.max((1 - (lat - minLat) / (maxLat - minLat)) * 74 + 13, 8), 92);
-
-  return { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 };
+  return null;
 }
 
 // Distance calculation using Haversine formula

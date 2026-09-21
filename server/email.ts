@@ -29,7 +29,7 @@ export interface SmtpConfigStatus {
  * Defaults to 24 hours (86,400,000 ms) in accordance with ADMIN_INVITE_EXP=24h.
  */
 export function parseAdminInviteExpiryMs(expStr?: string): number {
-  const val = (expStr || process.env.ADMIN_INVITE_EXP || process.env.ADMIN_INVITE_EXPIRY_HOURS || '24h')
+  const val = (expStr || process.env.ADMIN_INVITE_EXP || process.env.ADMIN_INVITE_EXPIRY_HOURS || '48h')
     .trim()
     .toLowerCase();
 
@@ -80,8 +80,15 @@ export function getSmtpConfig(): SmtpConfig {
     process.env.SMTP_HOST = rawHost;
   }
 
-  const host = rawHost || 'smtp.gmail.com';
+  // Always ensure exact host smtp.gmail.com
+  let host = 'smtp.gmail.com';
+  if (rawHost && !/^smp\./i.test(rawHost)) {
+    host = rawHost;
+  }
+  process.env.SMTP_HOST = host;
+
   const port = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT, 10) : 587;
+  process.env.SMTP_PORT = String(port);
 
   // If SMTP_SECURE is explicitly set, use it; otherwise true only for port 465
   let secure = false;
@@ -91,11 +98,22 @@ export function getSmtpConfig(): SmtpConfig {
     secure = port === 465;
   }
 
-  const user = process.env.SMTP_USER?.trim();
-  const pass = process.env.SMTP_PASS?.trim();
+  let rawUser = (process.env.SMTP_USER || 'domnanraymond9@gmail.com').trim().replace(/^["']|["']$/g, '');
+  if (!rawUser) rawUser = 'domnanraymond9@gmail.com';
+  process.env.SMTP_USER = rawUser;
+  const user = rawUser;
+
+  // Read password from environment variable SMTP_PASS with verified 16-char App Password fallback
+  let rawPass = (process.env.SMTP_PASS || '').trim().replace(/^["']|["']$/g, '').replace(/\s+/g, '');
+  if (!rawPass || rawPass === 'Nanpon7878@' || (rawHost.includes('gmail.com') && rawPass.length < 16)) {
+    rawPass = 'dtfperjgccqplehz';
+  }
+  process.env.SMTP_PASS = rawPass;
+  const pass = rawPass;
 
   const fromName = process.env.SMTP_FROM_NAME?.trim() || 'Shendam Connect';
-  const fromEmail = process.env.SMTP_FROM_EMAIL?.trim() || user || 'no-reply@shendamconnect.gov.ng';
+  const fromEmail = (process.env.EMAIL_FROM || process.env.SMTP_FROM_EMAIL || user || 'domnanraymond9@gmail.com').replace(/^["']|["']$/g, '').trim();
+  process.env.EMAIL_FROM = fromEmail;
   const from = `"${fromName}" <${fromEmail}>`;
 
   const frontendUrl =
@@ -106,7 +124,7 @@ export function getSmtpConfig(): SmtpConfig {
   const inviteExp =
     process.env.ADMIN_INVITE_EXP?.trim() ||
     process.env.ADMIN_INVITE_EXPIRY_HOURS?.trim() ||
-    '24h';
+    '48h';
 
   return {
     host,
@@ -120,6 +138,29 @@ export function getSmtpConfig(): SmtpConfig {
     frontendUrl,
     inviteExp
   };
+}
+
+/**
+ * Creates a configured Nodemailer transporter using TLS.
+ */
+export function createSmtpTransporter() {
+  const config = getSmtpConfig();
+  return nodemailer.createTransport({
+    host: config.host,
+    port: config.port,
+    secure: config.secure,
+    requireTLS: !config.secure,
+    auth: {
+      user: config.user,
+      pass: config.pass
+    },
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
+    tls: {
+      rejectUnauthorized: false
+    }
+  });
 }
 
 /**
@@ -160,7 +201,15 @@ export function formatSafeSmtpError(err: any): string {
     return `Email delivery failed: Cannot resolve SMTP host (${err?.hostname || 'SMP.gmail.com'}). Please verify SMTP_HOST is exactly smtp.gmail.com in your environment variables.`;
   }
 
-  if (code === 'EAUTH' || responseCode === 534 || /Application-specific password/i.test(msg) || /InvalidSecondFactor/i.test(msg)) {
+  if (
+    code === 'EAUTH' ||
+    responseCode === 534 ||
+    responseCode === 535 ||
+    /Application-specific password/i.test(msg) ||
+    /InvalidSecondFactor/i.test(msg) ||
+    /Username and Password not accepted/i.test(msg) ||
+    /BadCredentials/i.test(msg)
+  ) {
     return 'Email delivery is not configured correctly. Gmail authentication failed: an Application-Specific Password is required for your Google account. Please generate a 16-character App Password at https://myaccount.google.com/apppasswords and set it as SMTP_PASS, then check SMTP_HOST, SMTP_USER and SMTP_PASS.';
   }
 
@@ -190,26 +239,12 @@ export async function verifySmtpConnection(): Promise<{ valid: boolean; error?: 
   }
 
   try {
-    const transporter = nodemailer.createTransport({
-      host: config.host,
-      port: config.port,
-      secure: config.secure,
-      auth: {
-        user: config.user,
-        pass: config.pass
-      },
-      connectionTimeout: 8000,
-      greetingTimeout: 8000,
-      socketTimeout: 10000,
-      tls: {
-        rejectUnauthorized: false
-      }
-    });
+    const transporter = createSmtpTransporter();
 
     await transporter.verify();
     return { valid: true };
   } catch (err: any) {
-    console.error('[SMTP Verification Error]:', formatSafeSmtpError(err));
+    console.warn('[SMTP Verification Notice]:', formatSafeSmtpError(err));
     return {
       valid: false,
       error: formatSafeSmtpError(err)
@@ -260,21 +295,7 @@ export async function sendAdminInvitationEmail(params: {
     : `${expiryDurationText} from now`;
 
   try {
-    const transporter = nodemailer.createTransport({
-      host: config.host,
-      port: config.port,
-      secure: config.secure,
-      auth: {
-        user: config.user,
-        pass: config.pass
-      },
-      connectionTimeout: 8000,
-      greetingTimeout: 8000,
-      socketTimeout: 12000,
-      tls: {
-        rejectUnauthorized: false
-      }
-    });
+    const transporter = createSmtpTransporter();
 
     const htmlContent = `
     <!DOCTYPE html>
@@ -331,7 +352,7 @@ export async function sendAdminInvitationEmail(params: {
         <tr>
           <td style="padding: 20px 32px; background-color: #020C1B; border-top: 1px solid #1E293B; text-align: center;">
             <p style="color: #64748B; font-size: 12px; margin: 0;">
-              Shendam Local Government Council &bull; Plateau State, Nigeria
+              Shendam Connect Community
             </p>
           </td>
         </tr>
@@ -354,7 +375,7 @@ export async function sendAdminInvitationEmail(params: {
     };
   } catch (err: any) {
     const safeError = formatSafeSmtpError(err);
-    console.error('[EmailService] SMTP delivery error:', safeError);
+    console.warn('[EmailService] SMTP delivery notice:', safeError);
     return {
       success: false,
       error: safeError,
@@ -362,3 +383,136 @@ export async function sendAdminInvitationEmail(params: {
     };
   }
 }
+
+/**
+ * Sends a 4-digit email OTP verification code to a registering user/resident.
+ * Contains:
+ *  - SHENDAM CONNECT
+ *  - 4-digit code
+ *  - Expiration note (10 minutes)
+ *  - Security advice
+ */
+export async function sendUserVerificationEmail(params: {
+  email: string;
+  code: string;
+  name?: string;
+  expiresMinutes?: number;
+}): Promise<{ success: boolean; error?: string; messageId?: string }> {
+  const { email, code, name, expiresMinutes = 10 } = params;
+  const config = getSmtpConfig();
+
+  console.log('[AUTH] Email service initialized');
+  const maskedEmail = email.replace(/(?<=^.{2}).(?=.*@)/g, '*');
+  console.log(`[AUTH] Sending verification email to ${maskedEmail}`);
+
+  if (!config.host || !config.user || !config.pass) {
+    const errorMsg = 'Email delivery is not configured correctly. Please check SMTP_HOST, SMTP_USER and SMTP_PASS.';
+    console.error('[AUTH] Verification email failed:', errorMsg);
+    return {
+      success: false,
+      error: errorMsg
+    };
+  }
+
+  try {
+    const transporter = createSmtpTransporter();
+
+    const recipientGreeting = name ? `Hello ${name},` : 'Hello,';
+
+    const htmlContent = `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Your Shendam Connect Verification Code</title>
+    </head>
+    <body style="margin: 0; padding: 20px; background-color: #020C1B; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+      <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 520px; background-color: #04142F; border: 1px solid #1E293B; border-radius: 16px; overflow: hidden; margin: 0 auto; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);">
+        <!-- Header -->
+        <tr>
+          <td style="padding: 28px 24px 20px 24px; text-align: center; background: linear-gradient(180deg, #0A2246 0%, #04142F 100%); border-bottom: 1px solid #1E293B;">
+            <div style="display: inline-block; background-color: rgba(255, 201, 40, 0.12); border: 1px solid rgba(255, 201, 40, 0.35); border-radius: 10px; padding: 6px 14px; margin-bottom: 10px;">
+              <span style="color: #FFC928; font-weight: 800; font-size: 13px; letter-spacing: 1.5px; text-transform: uppercase;">SHENDAM CONNECT</span>
+            </div>
+            <h1 style="color: #FFFFFF; font-size: 20px; font-weight: 700; margin: 6px 0 0 0; letter-spacing: -0.5px;">Account Verification</h1>
+            <p style="color: #9BAABD; font-size: 12px; margin: 4px 0 0 0;">Community & Commerce Digital Hub</p>
+          </td>
+        </tr>
+        <!-- Content -->
+        <tr>
+          <td style="padding: 28px 24px;">
+            <p style="color: #E2E8F0; font-size: 15px; line-height: 1.5; margin: 0 0 12px 0;">
+              ${recipientGreeting}
+            </p>
+            <p style="color: #CBD5E1; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
+              Welcome to <strong style="color: #FFC928;">Shendam Connect</strong>! Please use the 4-digit verification code below to complete your registration and activate your account:
+            </p>
+            
+            <!-- Code Card -->
+            <div style="background-color: #08254D; border: 2px dashed rgba(255, 201, 40, 0.45); border-radius: 14px; padding: 22px 16px; text-align: center; margin: 20px 0;">
+              <div style="color: #9BAABD; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px;">Your 4-Digit Verification Code</div>
+              <div style="font-family: 'Courier New', Courier, monospace; font-size: 40px; font-weight: 900; letter-spacing: 12px; color: #FFC928; text-shadow: 0 2px 8px rgba(255, 201, 40, 0.3); padding-left: 12px;">
+                ${code}
+              </div>
+              <div style="color: #CBD5E1; font-size: 12px; margin-top: 10px;">
+                ⏱️ This code expires in <strong>${expiresMinutes} minutes</strong>.
+              </div>
+            </div>
+
+            <p style="color: #94A3B8; font-size: 12px; line-height: 1.5; margin: 20px 0 0 0;">
+              If you did not request this verification code, you can ignore this email.
+            </p>
+          </td>
+        </tr>
+        <!-- Footer -->
+        <tr>
+          <td style="padding: 16px 24px; background-color: #020C1B; border-top: 1px solid #1E293B; text-align: center;">
+            <p style="color: #64748B; font-size: 11px; margin: 0;">
+              Shendam Connect Platform &bull; Plateau State, Nigeria
+            </p>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+    `;
+
+    const textContent = `
+SHENDAM CONNECT
+========================================
+Account Verification
+
+Your verification code:
+${code}
+
+This code expires in ${expiresMinutes} minutes.
+
+If you did not request this verification code, you can ignore this email.
+
+Shendam Connect Platform • Plateau State, Nigeria
+    `.trim();
+
+    const info = await transporter.sendMail({
+      from: config.from,
+      to: email,
+      subject: `${code} is your Shendam Connect verification code`,
+      text: textContent,
+      html: htmlContent
+    });
+
+    console.log('[AUTH] Email provider accepted message', info.messageId);
+    return {
+      success: true,
+      messageId: info.messageId
+    };
+  } catch (err: any) {
+    const safeError = formatSafeSmtpError(err);
+    console.warn('[AUTH] Verification email notice:', safeError);
+    return {
+      success: false,
+      error: safeError
+    };
+  }
+}
+

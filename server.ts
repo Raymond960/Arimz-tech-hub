@@ -136,8 +136,12 @@ import {
 
 // Ensure persistent uploads directory exists
 const UPLOADS_DIR = path.join(process.cwd(), 'public', 'uploads');
-if (!fs.existsSync(UPLOADS_DIR)) {
-  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+try {
+  if (!fs.existsSync(UPLOADS_DIR)) {
+    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+  }
+} catch {
+  // Non-fatal on read-only serverless filesystems (e.g. Vercel)
 }
 
 // Initialize persistent DB storage
@@ -265,13 +269,30 @@ if (fs.existsSync(distUploadsPath)) {
 }
 app.use('/images', express.static(path.join(process.cwd(), 'public', 'images')));
 
+// Safe IP extractor for serverless (Vercel) and standard Node environments
+function getClientIp(req: any): string {
+  try {
+    const xff = req.headers?.['x-forwarded-for'];
+    if (xff) {
+      return (typeof xff === 'string' ? xff : xff[0]).split(',')[0].trim();
+    }
+    if (req.socket?.remoteAddress) {
+      return req.socket.remoteAddress;
+    }
+    if (req.connection?.remoteAddress) {
+      return req.connection.remoteAddress;
+    }
+  } catch {}
+  return '127.0.0.1';
+}
+
 // In-Memory Rate Limiting
 const requestCounts = new Map<string, { count: number; resetTime: number }>();
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const MAX_REQUESTS_PER_WINDOW = 400;
 
 app.use('/api', (req, res, next) => {
-  const ip = req.headers['x-forwarded-for']?.toString() || req.socket.remoteAddress || '127.0.0.1';
+  const ip = getClientIp(req);
   const now = Date.now();
   const record = requestCounts.get(ip);
 
@@ -369,7 +390,7 @@ app.get('/api/weather', async (req, res) => {
 // ============================================================================
 app.post('/api/admin/login', (req, res) => {
   const { email, password } = req.body || {};
-  const clientIp = req.headers['x-forwarded-for']?.toString() || req.socket.remoteAddress || '127.0.0.1';
+  const clientIp = getClientIp(req);
 
   if (!email || typeof email !== 'string' || !password || typeof password !== 'string') {
     return res.status(400).json({ error: 'Email and password are required.' });
@@ -1480,7 +1501,7 @@ app.get('/api/admin/places', requireAdminAuth, (req: AuthenticatedRequest, res) 
 // Direct Image Upload (Admin or Verified Owner Protected)
 app.post('/api/admin/upload', requireUserOrAdminAuth, (req: UserOrAdminRequest, res) => {
   try {
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || 'ip';
+    const clientIp = getClientIp(req);
     const callerId = req.adminSession?.adminEmail || req.user?.email || clientIp;
 
     // Rate limiting check
@@ -1577,7 +1598,7 @@ app.post('/api/admin/upload', requireUserOrAdminAuth, (req: UserOrAdminRequest, 
 // Batch Image Upload for Photo Galleries (Admin or Verified Owner Protected)
 app.post('/api/admin/upload-multiple', requireUserOrAdminAuth, (req: UserOrAdminRequest, res) => {
   try {
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || 'ip';
+    const clientIp = getClientIp(req);
     const callerId = req.adminSession?.adminEmail || req.user?.email || clientIp;
 
     // Rate limiting check
@@ -2527,7 +2548,7 @@ function checkDuplicateListing(db: any, name: string, phone: string, address?: s
 // Protected multi-photo upload for business listing submission (Authenticated Users & Admins)
 app.post('/api/submissions/upload-photos', requireUserOrAdminAuth, (req: UserOrAdminRequest, res) => {
   try {
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || 'ip';
+    const clientIp = getClientIp(req);
     const callerId = req.adminSession?.adminEmail || req.user?.email || clientIp;
 
     // Rate limiting check
@@ -4363,9 +4384,19 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 // ============================================================================
 // 9. VITE SPA MIDDLEWARE FOR DEVELOPMENT & PRODUCTION
 // ============================================================================
+const isServerless = Boolean(
+  process.env.VERCEL ||
+  process.env.VERCEL_ENV ||
+  process.env.NOW_REGION ||
+  process.env.AWS_LAMBDA_FUNCTION_NAME ||
+  process.env.LAMBDA_TASK_ROOT ||
+  process.env.NETLIFY ||
+  process.env.SERVERLESS
+);
+
 async function startServer() {
-  if (process.env.VERCEL) {
-    // In Vercel serverless environment, Vercel routes static files directly and handles serverless requests.
+  if (isServerless) {
+    // In Vercel or serverless environment, Vercel routes static files directly and handles serverless requests.
     return;
   }
 
@@ -4389,7 +4420,7 @@ async function startServer() {
   });
 }
 
-if (!process.env.VERCEL) {
+if (!isServerless) {
   startServer();
 }
 

@@ -607,6 +607,19 @@ export function initDatabase() {
       } catch {}
     }
 
+    // 0. Serverless bootstrap: If writable DB file does not exist yet (e.g. in /tmp on Vercel),
+    // copy bundled server-data/shendam_db.json into the writable location
+    const bundledDbPath = path.join(process.cwd(), 'server-data', 'shendam_db.json');
+    if (!fs.existsSync(DB_FILE_PATH) && fs.existsSync(bundledDbPath)) {
+      try {
+        const bundledContent = fs.readFileSync(bundledDbPath, 'utf-8');
+        fs.writeFileSync(DB_FILE_PATH, bundledContent, 'utf-8');
+        console.log('[Database] Bootstrapped writable database from bundled server-data/shendam_db.json');
+      } catch (seedErr) {
+        console.warn('[Database] Read-only environment, will read bundled DB directly:', seedErr);
+      }
+    }
+
     let parsed: any = null;
 
     // 1. Try reading primary database file
@@ -627,6 +640,17 @@ export function initDatabase() {
         console.log('[Database] Successfully restored database from shendam_db.json.bak');
       } catch (bakErr) {
         console.warn('[Database] Backup shendam_db.json.bak also unreadable:', bakErr);
+      }
+    }
+
+    // 3. Fallback to bundled repository database if /tmp or primary was empty
+    if (!parsed && fs.existsSync(bundledDbPath)) {
+      try {
+        const bundledData = fs.readFileSync(bundledDbPath, 'utf-8');
+        parsed = JSON.parse(bundledData);
+        console.log('[Database] Loaded database directly from bundled repository server-data/shendam_db.json');
+      } catch (bundleErr) {
+        console.warn('[Database] Bundled repository database also unreadable:', bundleErr);
       }
     }
 
@@ -779,8 +803,12 @@ export function initDatabase() {
         });
       }
 
-      if (!fs.existsSync(UPLOADS_DIR)) {
-        fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+      try {
+        if (!fs.existsSync(UPLOADS_DIR)) {
+          fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+        }
+      } catch {
+        // Non-fatal on read-only serverless filesystem
       }
 
       // 3. Two-way synchronization: Recreate missing files on disk from db.uploadedImages
@@ -800,16 +828,16 @@ export function initDatabase() {
           // Also mirror to dist/uploads if dist exists
           const distDir = path.join(process.cwd(), 'dist');
           if (fs.existsSync(distDir)) {
-            if (!fs.existsSync(DIST_UPLOADS_DIR)) {
-              fs.mkdirSync(DIST_UPLOADS_DIR, { recursive: true });
-            }
-            const distPath = path.join(DIST_UPLOADS_DIR, filename);
-            if (!fs.existsSync(distPath)) {
-              try {
-                fs.writeFileSync(distPath, Buffer.from(info.base64Data, 'base64'));
-              } catch {
-                // Non-fatal
+            try {
+              if (!fs.existsSync(DIST_UPLOADS_DIR)) {
+                fs.mkdirSync(DIST_UPLOADS_DIR, { recursive: true });
               }
+              const distPath = path.join(DIST_UPLOADS_DIR, filename);
+              if (!fs.existsSync(distPath)) {
+                fs.writeFileSync(distPath, Buffer.from(info.base64Data, 'base64'));
+              }
+            } catch {
+              // Non-fatal on read-only serverless
             }
           }
         }

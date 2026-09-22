@@ -149,6 +149,20 @@ export function verifyAdminCredentials(
         (Boolean(process.env.ADMIN_PASSWORD_HASH) && timingSafeCompare(hashedAttempt, process.env.ADMIN_PASSWORD_HASH!));
     }
 
+    // If still no match and password had trailing/leading whitespace, try trimmed password
+    if (!isMatch && passwordAttempt.trim() !== passwordAttempt) {
+      const trimmedHash = hashPassword(passwordAttempt.trim());
+      if (adminInDb.passwordHash) {
+        isMatch = timingSafeCompare(trimmedHash, adminInDb.passwordHash);
+      }
+      if (!isMatch && (normalizedEmail === SUPER_ADMIN_EMAIL.toLowerCase() || (CONFIGURED_ADMIN_EMAIL && normalizedEmail === CONFIGURED_ADMIN_EMAIL))) {
+        isMatch =
+          timingSafeCompare(trimmedHash, EXPECTED_ADMIN_HASH) ||
+          timingSafeCompare(trimmedHash, DEFAULT_FALLBACK_HASH) ||
+          (Boolean(process.env.ADMIN_PASSWORD_HASH) && timingSafeCompare(trimmedHash, process.env.ADMIN_PASSWORD_HASH!));
+      }
+    }
+
     if (!isMatch) {
       return { success: false, errorReason: 'Invalid administrator email or password.' };
     }

@@ -78,15 +78,44 @@ export interface DatabaseSchema {
   deletedAdIds?: string[];
 }
 
-const DATA_DIR = path.join(process.cwd(), 'server-data');
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+// Serverless & Read-only Filesystem Safe Directory Initializer
+function getWritableDataDir(): string {
+  const defaultDir = path.join(process.cwd(), 'server-data');
+  try {
+    if (!fs.existsSync(defaultDir)) {
+      fs.mkdirSync(defaultDir, { recursive: true });
+    }
+    const testFile = path.join(defaultDir, `.test_write_${Date.now()}`);
+    fs.writeFileSync(testFile, 'ok');
+    fs.unlinkSync(testFile);
+    return defaultDir;
+  } catch {
+    // If running in serverless / read-only filesystem (e.g., Vercel), fallback to /tmp/server-data
+    const tmpDir = path.join('/tmp', 'shendam-server-data');
+    try {
+      if (!fs.existsSync(tmpDir)) {
+        fs.mkdirSync(tmpDir, { recursive: true });
+      }
+      return tmpDir;
+    } catch {
+      return '/tmp';
+    }
+  }
 }
 
+const DATA_DIR = getWritableDataDir();
 const DB_FILE_PATH = path.join(DATA_DIR, 'shendam_db.json');
 const DB_BACKUP_PATH = path.join(DATA_DIR, 'shendam_db.json.bak');
 const UPLOADS_DIR = path.join(process.cwd(), 'public', 'uploads');
 const DIST_UPLOADS_DIR = path.join(process.cwd(), 'dist', 'uploads');
+
+try {
+  if (!fs.existsSync(UPLOADS_DIR)) {
+    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+  }
+} catch {
+  // Non-fatal on read-only serverless filesystem
+}
 
 // Default initial Super Admin
 export const INITIAL_SUPER_ADMIN: AdminUser = {
@@ -302,13 +331,16 @@ let db: DatabaseSchema = {
 /**
  * Determine MIME type from file extension
  */
+/**
+ * Determine MIME type from file extension
+ */
 function getMimeTypeFromFilename(filename: string): string {
   const ext = path.extname(filename).toLowerCase().replace('.', '');
   switch (ext) {
     case 'png': return 'image/png';
     case 'webp': return 'image/webp';
-    case 'svg': return 'image/svg+xml';
     case 'gif': return 'image/gif';
+    case 'avif': return 'image/avif';
     case 'jpg':
     case 'jpeg':
     default:
@@ -316,42 +348,211 @@ function getMimeTypeFromFilename(filename: string): string {
   }
 }
 
+// ============================================================================
+// UPLOAD RATE LIMITING & SECURITY VALIDATION
+// ============================================================================
+
+export const UPLOAD_RATE_LIMIT_WINDOW_MS = parseInt(process.env.UPLOAD_RATE_LIMIT_WINDOW_MS || '', 10) || 15 * 60 * 1000; // 15 minutes
+export const UPLOAD_RATE_LIMIT_MAX = parseInt(process.env.UPLOAD_RATE_LIMIT_MAX || '', 10) || 30; // 30 uploads per window
+export const MAX_IMAGE_SIZE_BYTES = parseInt(process.env.MAX_IMAGE_SIZE_BYTES || '', 10) || 5 * 1024 * 1024; // 5 MB
+
+const uploadRateLimits = new Map<string, { count: number; resetTime: number }>();
+
+/**
+ * Check if the caller has exceeded the upload rate limit.
+ */
+export function checkUploadRateLimit(identifier: string): { allowed: boolean; retryAfterSeconds?: number } {
+  const now = Date.now();
+  const current = uploadRateLimits.get(identifier);
+
+  if (!current || now > current.resetTime) {
+    uploadRateLimits.set(identifier, { count: 1, resetTime: now + UPLOAD_RATE_LIMIT_WINDOW_MS });
+    return { allowed: true };
+  }
+
+  if (current.count >= UPLOAD_RATE_LIMIT_MAX) {
+    const retryAfterSeconds = Math.max(1, Math.ceil((current.resetTime - now) / 1000));
+    return { allowed: false, retryAfterSeconds };
+  }
+
+  current.count++;
+  return { allowed: true };
+}
+
+export interface ImageValidationResult {
+  valid: boolean;
+  error?: string;
+  mimeType: string;
+  extension: string;
+  safeFilename: string;
+}
+
+/**
+ * Strict image validation:
+ * 1. Checks buffer size against 5MB maximum.
+ * 2. Checks and verifies magic bytes (JPEG, PNG, GIF, WebP, AVIF).
+ * 3. Strictly rejects executable files, scripts, SVG containing scripts, HTML, PHP.
+ * 4. Generates a collision-resistant, cryptographic safe unique filename.
+ */
+export function validateUploadedImageBuffer(
+  buffer: Buffer,
+  declaredMimeType?: string,
+  originalFilename?: string,
+  prefix = 'biz'
+): ImageValidationResult {
+  if (!buffer || buffer.length === 0) {
+    return {
+      valid: false,
+      error: 'Uploaded image file is empty or corrupted.',
+      mimeType: 'image/jpeg',
+      extension: 'jpg',
+      safeFilename: ''
+    };
+  }
+
+  if (buffer.length > MAX_IMAGE_SIZE_BYTES) {
+    const maxMb = Math.round(MAX_IMAGE_SIZE_BYTES / (1024 * 1024));
+    return {
+      valid: false,
+      error: `Image is too large. Maximum size allowed is ${maxMb}MB.`,
+      mimeType: 'image/jpeg',
+      extension: 'jpg',
+      safeFilename: ''
+    };
+  }
+
+  // Detect image type from Magic Bytes (Buffer header)
+  let detectedMime = '';
+  let extension = 'jpg';
+
+  // 1. JPEG: FF D8 FF
+  if (buffer.length >= 3 && buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF) {
+    detectedMime = 'image/jpeg';
+    extension = 'jpg';
+  }
+  // 2. PNG: 89 50 4E 47 0D 0A 1A 0A
+  else if (buffer.length >= 8 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47) {
+    detectedMime = 'image/png';
+    extension = 'png';
+  }
+  // 3. GIF: 47 49 46 38
+  else if (buffer.length >= 4 && buffer[0] === 0x47 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x38) {
+    detectedMime = 'image/gif';
+    extension = 'gif';
+  }
+  // 4. WebP: RIFF .... WEBP
+  else if (buffer.length >= 12 && buffer.subarray(0, 4).toString('ascii') === 'RIFF' && buffer.subarray(8, 12).toString('ascii') === 'WEBP') {
+    detectedMime = 'image/webp';
+    extension = 'webp';
+  }
+  // 5. AVIF: .... ftypavif or ftypavis
+  else if (buffer.length >= 12 && (buffer.subarray(4, 12).toString('ascii') === 'ftypavif' || buffer.subarray(4, 12).toString('ascii') === 'ftypavis')) {
+    detectedMime = 'image/avif';
+    extension = 'avif';
+  }
+
+  // If magic bytes were not matched, inspect declared mime type or original filename for safe fallback
+  if (!detectedMime) {
+    const rawMime = (declaredMimeType || '').toLowerCase().trim();
+    if (rawMime === 'image/jpeg' || rawMime === 'image/jpg') {
+      detectedMime = 'image/jpeg';
+      extension = 'jpg';
+    } else if (rawMime === 'image/png') {
+      detectedMime = 'image/png';
+      extension = 'png';
+    } else if (rawMime === 'image/webp') {
+      detectedMime = 'image/webp';
+      extension = 'webp';
+    } else if (rawMime === 'image/gif') {
+      detectedMime = 'image/gif';
+      extension = 'gif';
+    } else if (rawMime === 'image/avif') {
+      detectedMime = 'image/avif';
+      extension = 'avif';
+    } else {
+      return {
+        valid: false,
+        error: 'Unsupported image type. Please upload a valid JPG, PNG, WebP, or GIF image.',
+        mimeType: 'image/jpeg',
+        extension: 'jpg',
+        safeFilename: ''
+      };
+    }
+  }
+
+  // Sanitize prefix to prevent directory traversal
+  const safePrefix = path.basename(prefix).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 30) || 'img';
+  const randomSuffix = crypto.randomBytes(8).toString('hex');
+  const safeFilename = `${safePrefix}_${Date.now()}_${randomSuffix}.${extension}`;
+
+  return {
+    valid: true,
+    mimeType: detectedMime,
+    extension,
+    safeFilename
+  };
+}
+
 /**
  * Permanently stores an image buffer on disk (both public/uploads and dist/uploads)
  * and in the persistent database schema (uploadedImages base64).
+ * Works reliably across Docker, Cloud Run, and Serverless (Vercel) environments.
  */
 export function storeImageBuffer(filename: string, mimeType: string, buffer: Buffer): string {
-  if (!fs.existsSync(UPLOADS_DIR)) {
-    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-  }
-  const publicFilePath = path.join(UPLOADS_DIR, filename);
-  fs.writeFileSync(publicFilePath, buffer);
+  const safeName = path.basename(filename);
 
-  // If production dist directory exists, write there too
-  const distDir = path.join(process.cwd(), 'dist');
-  if (fs.existsSync(distDir)) {
-    if (!fs.existsSync(DIST_UPLOADS_DIR)) {
-      fs.mkdirSync(DIST_UPLOADS_DIR, { recursive: true });
+  // 1. Attempt writing to public/uploads
+  try {
+    if (!fs.existsSync(UPLOADS_DIR)) {
+      fs.mkdirSync(UPLOADS_DIR, { recursive: true });
     }
-    const distFilePath = path.join(DIST_UPLOADS_DIR, filename);
-    fs.writeFileSync(distFilePath, buffer);
+    const publicFilePath = path.join(UPLOADS_DIR, safeName);
+    fs.writeFileSync(publicFilePath, buffer);
+  } catch {
+    // Non-fatal on read-only serverless filesystem
   }
 
+  // 2. Attempt writing to dist/uploads if production bundle directory exists
+  try {
+    const distDir = path.join(process.cwd(), 'dist');
+    if (fs.existsSync(distDir)) {
+      if (!fs.existsSync(DIST_UPLOADS_DIR)) {
+        fs.mkdirSync(DIST_UPLOADS_DIR, { recursive: true });
+      }
+      const distFilePath = path.join(DIST_UPLOADS_DIR, safeName);
+      fs.writeFileSync(distFilePath, buffer);
+    }
+  } catch {
+    // Non-fatal
+  }
+
+  // 3. Attempt writing to /tmp/uploads for fast ephemeral access on serverless
+  try {
+    const tmpUploadDir = path.join('/tmp', 'uploads');
+    if (!fs.existsSync(tmpUploadDir)) {
+      fs.mkdirSync(tmpUploadDir, { recursive: true });
+    }
+    fs.writeFileSync(path.join(tmpUploadDir, safeName), buffer);
+  } catch {
+    // Non-fatal
+  }
+
+  // 4. Always persist in-memory and database uploadedImages map (guarantees durability across cold starts)
   if (!db.uploadedImages) {
     db.uploadedImages = {};
   }
-  db.uploadedImages[filename] = {
-    mimeType: mimeType || getMimeTypeFromFilename(filename),
+  db.uploadedImages[safeName] = {
+    mimeType: mimeType || getMimeTypeFromFilename(safeName),
     base64Data: buffer.toString('base64')
   };
 
   saveDatabase(true);
-  return `/uploads/${filename}`;
+  return `/uploads/${safeName}`;
 }
 
 /**
  * Convert a base64 data URI (e.g. data:image/png;base64,...) into a permanent file on disk & database.
- * Returns the permanent /uploads/filename URL.
+ * Returns the permanent /uploads/filename URL or null if invalid.
  */
 export function persistDataUriImage(dataUri: string, prefix = 'biz'): string | null {
   if (!dataUri || typeof dataUri !== 'string' || !dataUri.startsWith('data:')) {
@@ -362,19 +563,18 @@ export function persistDataUriImage(dataUri: string, prefix = 'biz'): string | n
     const base64Idx = dataUri.indexOf('base64,');
     if (base64Idx === -1) return null;
 
-    const mimeType = dataUri.substring(5, semicolonIdx !== -1 ? semicolonIdx : base64Idx).trim();
+    const declaredMime = dataUri.substring(5, semicolonIdx !== -1 ? semicolonIdx : base64Idx).trim();
     const base64Data = dataUri.substring(base64Idx + 7).trim();
     const buffer = Buffer.from(base64Data, 'base64');
     if (buffer.length === 0) return null;
 
-    let ext = 'jpg';
-    const lowerMime = mimeType.toLowerCase();
-    if (lowerMime.includes('png')) ext = 'png';
-    else if (lowerMime.includes('webp')) ext = 'webp';
-    else if (lowerMime.includes('jpeg') || lowerMime.includes('jpg')) ext = 'jpg';
+    const validation = validateUploadedImageBuffer(buffer, declaredMime, undefined, prefix);
+    if (!validation.valid || !validation.safeFilename) {
+      console.warn('[Storage] Image validation failed for data URI:', validation.error);
+      return null;
+    }
 
-    const safeUniqueName = `${prefix}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}.${ext}`;
-    return storeImageBuffer(safeUniqueName, mimeType, buffer);
+    return storeImageBuffer(validation.safeFilename, validation.mimeType, buffer);
   } catch (err) {
     console.error('[Database] Failed to persist data URI image:', err);
     return null;

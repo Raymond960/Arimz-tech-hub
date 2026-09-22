@@ -1,8 +1,18 @@
 import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
-import { addAuditLog, getDb, saveDatabase, findAdminByEmail, findAdminById, getAdmins } from './db';
+import {
+  addAuditLog,
+  getDb,
+  saveDatabase,
+  findAdminByEmail,
+  findAdminById,
+  getAdmins,
+  getUserAuthSession,
+  findUserById,
+  findUserByEmail
+} from './db';
 import { sanitizeString } from './validation';
-import { AdminRole, AdminUser } from '../src/types';
+import { AdminRole, AdminUser, RegisteredUser, UserAuthSession } from '../src/types';
 
 // Super Admin initial account and environment credentials
 const SUPER_ADMIN_EMAIL = 'domnanraymond9@gmail.com';
@@ -479,3 +489,88 @@ export function requireRole(allowedRoles: AdminRole[]) {
     next();
   };
 }
+
+// Express Request with User or Admin authentication context
+export interface UserOrAdminRequest extends Request {
+  adminSession?: ActiveSession;
+  userSession?: UserAuthSession;
+  user?: RegisteredUser;
+  authType?: 'ADMIN' | 'USER';
+}
+
+/**
+ * Authentication Middleware for protected upload and owner operations:
+ * Accepts valid Admin session OR valid registered User session.
+ */
+export function requireUserOrAdminAuth(req: UserOrAdminRequest, res: Response, next: NextFunction) {
+  const authHeader = req.headers.authorization;
+  const customAdminHeader = req.headers['x-admin-token'] as string;
+  const customUserHeader = req.headers['x-user-token'] as string;
+  const cookies = parseCookies(req.headers.cookie);
+  const cookieAdminToken = cookies['shendam_admin_token'];
+  const cookieUserToken = cookies['shendam_user_token'];
+  const queryToken = req.query.token as string;
+
+  const rawBearer = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+
+  // 1. Check for Admin token first
+  const adminTokenCandidate = (rawBearer.startsWith('adm_') || rawBearer.startsWith('sec_'))
+    ? rawBearer
+    : (customAdminHeader || cookieAdminToken || (!rawBearer.startsWith('usr_') && !rawBearer.startsWith('usr-') ? rawBearer : '') || (queryToken?.startsWith('adm_') ? queryToken : '')).trim();
+
+  if (adminTokenCandidate) {
+    const adminSession = validateSessionToken(adminTokenCandidate);
+    if (adminSession) {
+      req.adminSession = adminSession;
+      req.authType = 'ADMIN';
+      return next();
+    }
+  }
+
+  // 2. Check for User token
+  const userTokenCandidate = (rawBearer.startsWith('usr_') || rawBearer.startsWith('usr-'))
+    ? rawBearer
+    : (customUserHeader || cookieUserToken || rawBearer || (queryToken?.startsWith('usr_') ? queryToken : '')).trim();
+
+  if (userTokenCandidate) {
+    const userSession = getUserAuthSession(userTokenCandidate);
+    if (userSession) {
+      const user = findUserById(userSession.userId) || findUserByEmail(userSession.email);
+      if (user) {
+        req.userSession = userSession;
+        const { passwordHash: _, ...safeUser } = user as any;
+        req.user = safeUser as RegisteredUser;
+        req.authType = 'USER';
+        return next();
+      }
+    }
+  }
+
+  return res.status(401).json({
+    error: 'You must be signed in to upload images.',
+    message: 'Authentication required. Please sign in as a registered user or administrator.'
+  });
+}
+
+/**
+ * Check if the authenticated user is an administrator OR the owner of the place.
+ */
+export function canUserModifyPlace(req: UserOrAdminRequest, place: any): boolean {
+  if (!place) return false;
+  // Administrators can modify any listing
+  if (req.adminSession) return true;
+  // Verified business/hotel owners can modify their own listing
+  if (req.user) {
+    const userEmail = req.user.email?.toLowerCase().trim();
+    const userName = req.user.name?.toLowerCase().trim();
+    const userId = req.user.id?.trim();
+    const placeOwner = (place.owner || '').toLowerCase().trim();
+    const placeEmail = (place.email || place.contactEmail || '').toLowerCase().trim();
+
+    if (userEmail && (placeOwner === userEmail || placeEmail === userEmail)) return true;
+    if (userId && (place.ownerId === userId || placeOwner === userId)) return true;
+    if (userName && placeOwner === userName) return true;
+  }
+  return false;
+}
+

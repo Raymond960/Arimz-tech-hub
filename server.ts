@@ -2,7 +2,6 @@ import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
-import { createServer as createViteServer } from 'vite';
 
 // Normalize typographical error in deployed environment variable (SMP.gmail.com -> smtp.gmail.com)
 if (process.env.SMTP_HOST && /^smp\./i.test(process.env.SMTP_HOST.trim())) {
@@ -26,6 +25,9 @@ import {
   addAdminNotification,
   storeImageBuffer,
   persistDataUriImage,
+  validateUploadedImageBuffer,
+  checkUploadRateLimit,
+  MAX_IMAGE_SIZE_BYTES,
   deletePlacePermanently,
   deletePlacePhotoPermanently,
   deletePlaceReviewPermanently,
@@ -93,6 +95,9 @@ import {
   revokeAllSessionsForAdmin,
   requireAdminAuth,
   requireRole,
+  requireUserOrAdminAuth,
+  canUserModifyPlace,
+  UserOrAdminRequest,
   hashPassword,
   checkLoginLockout,
   recordFailedLogin,
@@ -946,13 +951,27 @@ app.post('/api/auth/logout', (req, res) => {
 // ============================================================================
 // 2.5 ADMIN MANAGEMENT & RBAC APIS
 // ============================================================================
-// Get list of all administrators (SUPER_ADMIN only)
-app.get('/api/admin/users', requireAdminAuth, requireRole(['SUPER_ADMIN']), (req: AuthenticatedRequest, res) => {
-  const admins = getAdmins().map((a) => {
-    const { passwordHash, invitationToken, ...safeAdmin } = a;
-    return safeAdmin;
+// Get list of administrators (SUPER_ADMIN) and active user sessions (all Admins)
+app.get('/api/admin/users', requireAdminAuth, (req: AuthenticatedRequest, res) => {
+  const db = getDb();
+  const sessions = Object.values(db.sessions || {}).sort((a, b) => b.lastSeen - a.lastSeen);
+  const isSuperAdmin = req.adminSession?.role === 'SUPER_ADMIN';
+
+  const safeAdmins = isSuperAdmin
+    ? getAdmins().map((a) => {
+        const { passwordHash, invitationToken, ...safeAdmin } = a;
+        return safeAdmin;
+      })
+    : [];
+
+  res.json({
+    success: true,
+    admins: safeAdmins,
+    total: safeAdmins.length,
+    totalUsersCount: sessions.length,
+    activeUsersCount: getActiveUsersCount(),
+    sessions
   });
-  res.json({ success: true, admins, total: admins.length });
 });
 
 // Check SMTP Email Service status
@@ -1458,12 +1477,38 @@ app.get('/api/admin/places', requireAdminAuth, (req: AuthenticatedRequest, res) 
   });
 });
 
-// Direct Image Upload (Admin Protected)
-app.post('/api/admin/upload', requireAdminAuth, (req: AuthenticatedRequest, res) => {
+// Direct Image Upload (Admin or Verified Owner Protected)
+app.post('/api/admin/upload', requireUserOrAdminAuth, (req: UserOrAdminRequest, res) => {
   try {
-    const { fileData, filename, brandingTarget } = req.body || {};
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || 'ip';
+    const callerId = req.adminSession?.adminEmail || req.user?.email || clientIp;
+
+    // Rate limiting check
+    const rateCheck = checkUploadRateLimit(`upload_${callerId}`);
+    if (!rateCheck.allowed) {
+      return res.status(429).json({
+        error: 'Upload rate limit exceeded',
+        message: `Too many upload requests. Please wait ${rateCheck.retryAfterSeconds || 60} seconds before trying again.`
+      });
+    }
+
+    const { fileData, filename, brandingTarget, placeId } = req.body || {};
     if (!fileData) {
       return res.status(400).json({ error: 'No image data provided.' });
+    }
+
+    // If brandingTarget is requested, strictly require Administrator session
+    if (brandingTarget && !req.adminSession) {
+      return res.status(403).json({ error: 'Only administrators can update system branding.' });
+    }
+
+    // If uploading for a specific place as a normal user, verify listing ownership
+    if (placeId && !req.adminSession && req.user) {
+      const db = getDb();
+      const place = db.places?.find((p) => p.id === placeId);
+      if (place && !canUserModifyPlace(req, place)) {
+        return res.status(403).json({ error: 'You are not authorized to upload images to this listing.' });
+      }
     }
 
     let mimeType = 'image/jpeg';
@@ -1491,26 +1536,15 @@ app.post('/api/admin/upload', requireAdminAuth, (req: AuthenticatedRequest, res)
       return res.status(400).json({ error: 'Decoded image data is empty or invalid.' });
     }
 
-    // Determine extension: PNG, JPG, JPEG, WebP
-    let ext = 'jpg';
-    const lowerMime = mimeType.toLowerCase();
-    if (lowerMime.includes('png')) ext = 'png';
-    else if (lowerMime.includes('webp')) ext = 'webp';
-    else if (lowerMime.includes('jpeg') || lowerMime.includes('jpg')) ext = 'jpg';
-    else if (filename) {
-      const parts = filename.split('.');
-      if (parts.length > 1) {
-        const parsedExt = parts.pop()?.toLowerCase();
-        if (parsedExt && ['png', 'jpg', 'jpeg', 'webp'].includes(parsedExt)) {
-          ext = parsedExt === 'jpeg' ? 'jpg' : parsedExt;
-        }
-      }
+    const prefix = req.body.prefix || (filename?.toLowerCase().includes('lga') || brandingTarget === 'lga_profile' ? 'lga' : (filename?.toLowerCase().includes('logo') || brandingTarget ? 'logo' : 'biz'));
+    
+    // Strict buffer magic byte and size validation
+    const validation = validateUploadedImageBuffer(buffer, mimeType, filename, prefix);
+    if (!validation.valid || !validation.safeFilename) {
+      return res.status(400).json({ error: validation.error || 'Invalid or unsupported image file.' });
     }
 
-    const prefix = req.body.prefix || (filename?.toLowerCase().includes('lga') || brandingTarget === 'lga_profile' ? 'lga' : (filename?.toLowerCase().includes('logo') || brandingTarget ? 'logo' : 'biz'));
-    const safeUniqueName = `${prefix}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}.${ext}`;
-
-    const publicUrl = storeImageBuffer(safeUniqueName, mimeType, buffer);
+    const publicUrl = storeImageBuffer(validation.safeFilename, validation.mimeType, buffer);
 
     // If a branding target was provided, update branding in the same single atomic operation
     const db = getDb();
@@ -1530,7 +1564,7 @@ app.post('/api/admin/upload', requireAdminAuth, (req: AuthenticatedRequest, res)
     res.json({
       success: true,
       url: publicUrl,
-      filename: safeUniqueName,
+      filename: validation.safeFilename,
       size: buffer.length,
       branding: db.branding
     });
@@ -1540,12 +1574,33 @@ app.post('/api/admin/upload', requireAdminAuth, (req: AuthenticatedRequest, res)
   }
 });
 
-// Batch Image Upload for Photo Galleries
-app.post('/api/admin/upload-multiple', requireAdminAuth, (req: AuthenticatedRequest, res) => {
+// Batch Image Upload for Photo Galleries (Admin or Verified Owner Protected)
+app.post('/api/admin/upload-multiple', requireUserOrAdminAuth, (req: UserOrAdminRequest, res) => {
   try {
-    const { files } = req.body;
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || 'ip';
+    const callerId = req.adminSession?.adminEmail || req.user?.email || clientIp;
+
+    // Rate limiting check
+    const rateCheck = checkUploadRateLimit(`upload_batch_${callerId}`);
+    if (!rateCheck.allowed) {
+      return res.status(429).json({
+        error: 'Upload rate limit exceeded',
+        message: `Too many upload requests. Please wait ${rateCheck.retryAfterSeconds || 60} seconds before trying again.`
+      });
+    }
+
+    const { files, placeId } = req.body || {};
     if (!Array.isArray(files) || files.length === 0) {
       return res.status(400).json({ error: 'No files provided for batch upload.' });
+    }
+
+    // If uploading for a specific place as a normal user, verify listing ownership
+    if (placeId && !req.adminSession && req.user) {
+      const db = getDb();
+      const place = db.places?.find((p) => p.id === placeId);
+      if (place && !canUserModifyPlace(req, place)) {
+        return res.status(403).json({ error: 'You are not authorized to upload images to this listing.' });
+      }
     }
 
     const uploadedUrls: string[] = [];
@@ -1576,23 +1631,10 @@ app.post('/api/admin/upload-multiple', requireAdminAuth, (req: AuthenticatedRequ
       const buffer = Buffer.from(base64Data, 'base64');
       if (buffer.length === 0) continue;
 
-      let ext = 'jpg';
-      const lowerMime = mimeType.toLowerCase();
-      if (lowerMime.includes('png')) ext = 'png';
-      else if (lowerMime.includes('webp')) ext = 'webp';
-      else if (lowerMime.includes('jpeg') || lowerMime.includes('jpg')) ext = 'jpg';
-      else if (file.filename) {
-        const parts = file.filename.split('.');
-        if (parts.length > 1) {
-          const parsedExt = parts.pop()?.toLowerCase();
-          if (parsedExt && ['png', 'jpg', 'jpeg', 'webp'].includes(parsedExt)) {
-            ext = parsedExt === 'jpeg' ? 'jpg' : parsedExt;
-          }
-        }
-      }
+      const validation = validateUploadedImageBuffer(buffer, mimeType, file.filename, 'gallery');
+      if (!validation.valid || !validation.safeFilename) continue;
 
-      const safeUniqueName = `gallery_${Date.now()}_${crypto.randomBytes(4).toString('hex')}.${ext}`;
-      const url = storeImageBuffer(safeUniqueName, mimeType, buffer);
+      const url = storeImageBuffer(validation.safeFilename, validation.mimeType, buffer);
       uploadedUrls.push(url);
     }
 
@@ -2287,17 +2329,28 @@ app.delete('/api/admin/places/:id', requireAdminAuth, (req: AuthenticatedRequest
 });
 
 // Delete specific photo from a place (Permanent removal, referential integrity check, file cleanup)
-app.delete('/api/admin/places/:id/photos', requireAdminAuth, (req: AuthenticatedRequest, res) => {
+app.delete('/api/admin/places/:id/photos', requireUserOrAdminAuth, (req: UserOrAdminRequest, res) => {
   const { id } = req.params;
   const { photoUrl } = req.body || {};
-  const adminEmail = req.adminSession?.adminEmail || 'admin@shendamconnect.gov.ng';
+  const callerEmail = req.adminSession?.adminEmail || req.user?.email || 'admin@shendamconnect.gov.ng';
 
   if (!photoUrl) {
     return res.status(400).json({ error: 'photoUrl is required.' });
   }
 
+  const db = getDb();
+  const place = db.places?.find((p) => p.id === id);
+  if (!place) {
+    return res.status(404).json({ error: 'Listing not found.' });
+  }
+
+  // Enforce Authorization: Caller must be Administrator or verified owner of the listing
+  if (!req.adminSession && !canUserModifyPlace(req, place)) {
+    return res.status(403).json({ error: 'You are not authorized to delete photos from this listing.' });
+  }
+
   try {
-    const result = deletePlacePhotoPermanently(id, photoUrl, adminEmail);
+    const result = deletePlacePhotoPermanently(id, photoUrl, callerEmail);
     res.json({
       success: true,
       message: 'Photo deleted permanently.',
@@ -2471,12 +2524,33 @@ function checkDuplicateListing(db: any, name: string, phone: string, address?: s
   return null;
 }
 
-// Public multi-photo upload for business listing form
-app.post('/api/submissions/upload-photos', (req, res) => {
+// Protected multi-photo upload for business listing submission (Authenticated Users & Admins)
+app.post('/api/submissions/upload-photos', requireUserOrAdminAuth, (req: UserOrAdminRequest, res) => {
   try {
-    const { files } = req.body || {};
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || 'ip';
+    const callerId = req.adminSession?.adminEmail || req.user?.email || clientIp;
+
+    // Rate limiting check
+    const rateCheck = checkUploadRateLimit(`submission_upload_${callerId}`);
+    if (!rateCheck.allowed) {
+      return res.status(429).json({
+        error: 'Upload rate limit exceeded',
+        message: `Too many upload requests. Please wait ${rateCheck.retryAfterSeconds || 60} seconds before trying again.`
+      });
+    }
+
+    const { files, placeId } = req.body || {};
     if (!Array.isArray(files) || files.length === 0) {
       return res.status(400).json({ error: 'No photos provided for upload.' });
+    }
+
+    // If uploading for an existing listing, verify ownership
+    if (placeId && !req.adminSession && req.user) {
+      const db = getDb();
+      const place = db.places?.find((p) => p.id === placeId);
+      if (place && !canUserModifyPlace(req, place)) {
+        return res.status(403).json({ error: 'You are not authorized to upload images to this listing.' });
+      }
     }
 
     const uploadedUrls: string[] = [];
@@ -2507,23 +2581,12 @@ app.post('/api/submissions/upload-photos', (req, res) => {
       const buffer = Buffer.from(base64Data, 'base64');
       if (buffer.length === 0) continue;
 
-      let ext = 'jpg';
-      const lowerMime = mimeType.toLowerCase();
-      if (lowerMime.includes('png')) ext = 'png';
-      else if (lowerMime.includes('webp')) ext = 'webp';
-      else if (lowerMime.includes('jpeg') || lowerMime.includes('jpg')) ext = 'jpg';
-      else if (file.filename) {
-        const parts = file.filename.split('.');
-        if (parts.length > 1) {
-          const parsedExt = parts.pop()?.toLowerCase();
-          if (parsedExt && ['png', 'jpg', 'jpeg', 'webp'].includes(parsedExt)) {
-            ext = parsedExt === 'jpeg' ? 'jpg' : parsedExt;
-          }
-        }
+      const validation = validateUploadedImageBuffer(buffer, mimeType, file.filename, 'biz_real');
+      if (!validation.valid || !validation.safeFilename) {
+        continue;
       }
 
-      const safeUniqueName = `biz_real_${Date.now()}_${crypto.randomBytes(4).toString('hex')}.${ext}`;
-      const url = storeImageBuffer(safeUniqueName, mimeType, buffer);
+      const url = storeImageBuffer(validation.safeFilename, validation.mimeType, buffer);
       uploadedUrls.push(url);
     }
 
@@ -2533,7 +2596,7 @@ app.post('/api/submissions/upload-photos', (req, res) => {
       count: uploadedUrls.length
     });
   } catch (err: any) {
-    console.error('[Public Photos Upload Error]', err);
+    console.error('[Photos Upload Error]', err);
     res.status(500).json({ error: 'Failed to upload business photos.' });
   }
 });
@@ -3163,10 +3226,11 @@ app.post('/api/admin/revenue/transaction', requireAdminAuth, (req: Authenticated
 // ============================================================================
 // 10. USERS (ANONYMOUS SESSIONS), AUDIT LOGS, NOTIFICATIONS & SETTINGS
 // ============================================================================
-app.get('/api/admin/users', requireAdminAuth, (req, res) => {
+app.get(['/api/admin/user-sessions', '/api/admin/sessions'], requireAdminAuth, (req, res) => {
   const db = getDb();
-  const sessions = Object.values(db.sessions).sort((a, b) => b.lastSeen - a.lastSeen);
+  const sessions = Object.values(db.sessions || {}).sort((a, b) => b.lastSeen - a.lastSeen);
   res.json({
+    success: true,
     totalUsersCount: sessions.length,
     activeUsersCount: getActiveUsersCount(),
     sessions
@@ -3848,9 +3912,26 @@ app.post('/api/opportunities/:id/apply', (req, res) => {
   });
 });
 
-// Public Webhook / Postback endpoint for Affiliate Networks (Manual or Server-to-Server)
+// Webhook / Postback endpoint for Affiliate Networks (Authorized Server-to-Server or Admin Protected)
 app.post('/api/affiliate/conversion', (req, res) => {
-  const { opportunityId, referralCode, commissionAmount, note } = req.body;
+  const webhookSecret = process.env.AFFILIATE_WEBHOOK_SECRET;
+  const providedSecret = (req.headers['x-webhook-secret'] as string) || (req.query.secret as string);
+  const sessionToken = parseCookies(req.headers.cookie || '').admin_session;
+  const adminSession = sessionToken ? validateSessionToken(sessionToken) : null;
+
+  // Enforce security: Require configured webhook secret OR active Admin session
+  if (webhookSecret) {
+    if (!providedSecret || !timingSafeCompare(providedSecret, webhookSecret)) {
+      if (!adminSession) {
+        return res.status(401).json({ error: 'Unauthorized affiliate conversion webhook request.' });
+      }
+    }
+  } else if (!adminSession) {
+    // If no webhook secret is configured in environment, require admin session to record conversions
+    return res.status(401).json({ error: 'Authentication required to report affiliate conversions.' });
+  }
+
+  const { opportunityId, referralCode, commissionAmount, note } = req.body || {};
   const db = getDb();
   const opp = db.opportunities?.find(
     (o) => o.id === opportunityId || (o.referralUrl && referralCode && o.referralUrl.includes(referralCode))
@@ -4289,6 +4370,7 @@ async function startServer() {
   }
 
   if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true, hmr: false },
       appType: 'spa'

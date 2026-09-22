@@ -62,7 +62,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [token, setToken] = useState<string | null>(() => {
     return sessionStorage.getItem('shendam_admin_token') || localStorage.getItem('shendam_admin_token') || null;
   });
-  const [adminUser, setAdminUser] = useState<{ email: string; role: AdminRole; title: string; name?: string } | null>(null);
+  const [adminUser, setAdminUser] = useState<{ email: string; role: AdminRole; title: string; name?: string } | null>(() => {
+    try {
+      const raw = sessionStorage.getItem('shendam_admin_user') || localStorage.getItem('shendam_admin_user');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  });
   const [isVerifyingAuth, setIsVerifyingAuth] = useState(true);
 
   // Navigation & UI State
@@ -115,27 +122,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const verify = async () => {
       try {
         const res = await fetch('/api/admin/verify', {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'x-admin-token': token
+          }
         });
         if (res.ok) {
           const data = await res.json();
-          setAdminUser({
+          const userObj = {
             email: data.email || 'domnanraymond9@gmail.com',
             role: data.role || 'SUPER_ADMIN',
             title: data.title || 'Super Admin & Platform Director',
             name: data.name || 'Administrator'
-          });
-        } else {
+          };
+          setAdminUser(userObj);
+          localStorage.setItem('shendam_admin_user', JSON.stringify(userObj));
+          sessionStorage.setItem('shendam_admin_user', JSON.stringify(userObj));
+        } else if (res.status === 401) {
           sessionStorage.removeItem('shendam_admin_token');
           localStorage.removeItem('shendam_admin_token');
+          sessionStorage.removeItem('shendam_admin_user');
+          localStorage.removeItem('shendam_admin_user');
           setToken(null);
           setAdminUser(null);
         }
-      } catch {
-        sessionStorage.removeItem('shendam_admin_token');
-        localStorage.removeItem('shendam_admin_token');
-        setToken(null);
-        setAdminUser(null);
+      } catch (err) {
+        console.warn('[Admin] Verify network check failed, preserving session:', err);
       } finally {
         setIsVerifyingAuth(false);
       }
@@ -153,7 +165,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const fetchAllData = useCallback(async () => {
     if (!token) return;
 
-    const headers = { Authorization: `Bearer ${token}` };
+    const headers = { 
+      Authorization: `Bearer ${token}`,
+      'x-admin-token': token
+    };
 
     try {
       // Places (Admin endpoint returns all places including drafts)
@@ -280,6 +295,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const handleLoginSuccess = (newToken: string, user: { email: string; role: string; title: string }) => {
     sessionStorage.setItem('shendam_admin_token', newToken);
     localStorage.setItem('shendam_admin_token', newToken);
+    sessionStorage.setItem('shendam_admin_user', JSON.stringify(user));
+    localStorage.setItem('shendam_admin_user', JSON.stringify(user));
     setToken(newToken);
     setAdminUser(user);
     showToast('Administrator authenticated successfully.');
@@ -290,12 +307,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       if (token) {
         await fetch('/api/admin/logout', {
           method: 'POST',
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'x-admin-token': token
+          }
         });
       }
     } catch {}
     sessionStorage.removeItem('shendam_admin_token');
     localStorage.removeItem('shendam_admin_token');
+    sessionStorage.removeItem('shendam_admin_user');
+    localStorage.removeItem('shendam_admin_user');
     setToken(null);
     setAdminUser(null);
     showToast('Signed out of Admin Portal.');

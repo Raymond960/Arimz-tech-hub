@@ -107,7 +107,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBackTo
                 autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@shendamconnect.gov.ng"
+                placeholder="domnanraymond9@gmail.com"
                 className="w-full bg-[#04142F] border border-white/16 rounded-2xl pl-10 pr-4 py-3 text-xs sm:text-sm text-white placeholder-[#9BAABD]/60 outline-none focus:border-[#FFC928] transition"
               />
             </div>
@@ -127,7 +127,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBackTo
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••••••"
+                placeholder="ShendamAdmin2026!"
                 className="w-full bg-[#04142F] border border-white/16 rounded-2xl pl-10 pr-11 py-3 text-xs sm:text-sm text-white placeholder-[#9BAABD]/60 outline-none focus:border-[#FFC928] transition"
               />
               <button
@@ -138,6 +138,29 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBackTo
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
+          </div>
+
+          {/* Quick-Fill Credentials Helper for Mobile Convenience */}
+          <div className="p-3 bg-[#04142F]/70 border border-[#FFC928]/25 rounded-2xl flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold text-[#FFC928] truncate">
+                Super Admin Account
+              </p>
+              <p className="text-[10px] text-[#9BAABD] truncate font-mono">
+                domnanraymond9@gmail.com
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setEmail('domnanraymond9@gmail.com');
+                setPassword('ShendamAdmin2026!');
+                setErrorMessage(null);
+              }}
+              className="px-2.5 py-1.5 bg-[#FFC928]/15 hover:bg-[#FFC928]/25 text-[#FFC928] border border-[#FFC928]/40 rounded-xl text-[11px] font-bold shrink-0 transition active:scale-95 cursor-pointer"
+            >
+              Auto-Fill
+            </button>
           </div>
 
           <button

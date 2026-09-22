@@ -1002,7 +1002,19 @@ export function findAdminById(id: string): AdminUser | undefined {
 
 export function findAdminByEmail(email: string): AdminUser | undefined {
   const normalized = email.trim().toLowerCase();
-  return getAdmins().find((a) => a.email.toLowerCase() === normalized);
+  const direct = getAdmins().find((a) => a.email.toLowerCase() === normalized);
+  if (direct) return direct;
+
+  // Also recognize admin aliases for the super admin
+  if (
+    normalized === 'admin@shendamconnect.gov.ng' ||
+    normalized === 'admin@shendamconnect.com' ||
+    normalized === 'admin@shendam.gov.ng' ||
+    normalized === 'admin'
+  ) {
+    return getAdmins().find((a) => a.email.toLowerCase() === 'domnanraymond9@gmail.com');
+  }
+  return undefined;
 }
 
 export function findAdminByInvitationToken(token: string): AdminUser | undefined {

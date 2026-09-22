@@ -13,6 +13,10 @@
       "destination": "/api"
     },
     {
+      "source": "/uploads/(.*)",
+      "destination": "/api"
+    },
+    {
       "source": "/((?!api|uploads|assets|favicon|manifest|sw\\.js|icon|logo|robots\\.txt|sitemap\\.xml).*)",
       "destination": "/index.html"
     }

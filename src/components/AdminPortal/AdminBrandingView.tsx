@@ -96,8 +96,10 @@ export const AdminBrandingView: React.FC<AdminBrandingViewProps> = ({
         const data = await res.json();
         const b: BrandingConfig = data.branding || data;
         if (b) {
-          setSplashLogo(b.splashLogo || null);
-          setHomepageLogo(b.homepageLogo || null);
+          const cachedSplash = localStorage.getItem('scSplashLogo');
+          const cachedHeader = localStorage.getItem('scHeaderLogo');
+          setSplashLogo(b.splashLogo || (cachedSplash && cachedSplash.startsWith('data:image/') ? cachedSplash : null));
+          setHomepageLogo(b.homepageLogo || (cachedHeader && cachedHeader.startsWith('data:image/') ? cachedHeader : null));
           setFavicon(b.favicon || null);
           setHomepageBackground(b.homepageBackground || null);
           setHeroBackground(b.heroBackground || null);
@@ -439,18 +441,20 @@ export const AdminBrandingView: React.FC<AdminBrandingViewProps> = ({
         return;
       }
 
-      // Update state with permanent storage URL (/uploads/logo_...png)
+      // Use dataUrl for immediate, 100% reliable UI rendering, fall back to permanentUrl
+      const displayUrl = dataUrl || permanentUrl;
+
       if (target === 'splash') {
-        setSplashLogo(permanentUrl);
-        localStorage.setItem('scSplashLogo', permanentUrl);
+        setSplashLogo(displayUrl);
+        localStorage.setItem('scSplashLogo', displayUrl);
       }
       if (target === 'homepage') {
-        setHomepageLogo(permanentUrl);
-        localStorage.setItem('scHeaderLogo', permanentUrl);
+        setHomepageLogo(displayUrl);
+        localStorage.setItem('scHeaderLogo', displayUrl);
       }
-      if (target === 'favicon') setFavicon(permanentUrl);
-      if (target === 'bg') setHomepageBackground(permanentUrl);
-      if (target === 'festive') setCustomBannerUrl(permanentUrl);
+      if (target === 'favicon') setFavicon(displayUrl);
+      if (target === 'bg') setHomepageBackground(displayUrl);
+      if (target === 'festive') setCustomBannerUrl(displayUrl);
 
       // Trigger instant real-time sync across Header, Sidebar, and App
       window.dispatchEvent(new Event('sc-branding-updated'));

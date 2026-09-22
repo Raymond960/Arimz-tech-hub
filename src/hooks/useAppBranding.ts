@@ -89,13 +89,44 @@ export const useAppBranding = () => {
       return;
     }
 
+    // Direct data URIs are already decoded in memory and 100% reliable
+    if (targetUrl.startsWith('data:image/')) {
+      setter(targetUrl);
+      return;
+    }
+
     const img = new Image();
     img.onload = () => {
       setter(targetUrl);
     };
     img.onerror = () => {
-      console.warn('[Branding] Custom logo URL failed to load, maintaining fallback:', targetUrl);
-      setter(fallbackValue);
+      // If /uploads/ failed, attempt /api/uploads/
+      if (targetUrl.startsWith('/uploads/') && !targetUrl.startsWith('/api/uploads/')) {
+        const retryUrl = '/api' + targetUrl;
+        const retryImg = new Image();
+        retryImg.onload = () => setter(retryUrl);
+        retryImg.onerror = () => {
+          // Check localStorage for cached data URI
+          const cached = targetUrl.includes('splash') ? localStorage.getItem('scSplashLogo') : localStorage.getItem('scHeaderLogo');
+          if (cached && cached.startsWith('data:image/')) {
+            setter(cached);
+          } else {
+            console.warn('[Branding] Custom logo URL failed to load, maintaining fallback:', targetUrl);
+            setter(fallbackValue);
+          }
+        };
+        retryImg.src = retryUrl;
+        return;
+      }
+
+      // Check localStorage for cached data URI
+      const cached = targetUrl.includes('splash') ? localStorage.getItem('scSplashLogo') : localStorage.getItem('scHeaderLogo');
+      if (cached && cached.startsWith('data:image/')) {
+        setter(cached);
+      } else {
+        console.warn('[Branding] Custom logo URL failed to load, maintaining fallback:', targetUrl);
+        setter(fallbackValue);
+      }
     };
     img.src = targetUrl;
   }, []);

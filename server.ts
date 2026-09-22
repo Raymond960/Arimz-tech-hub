@@ -215,11 +215,13 @@ function normalizeImageInput(inputUrl: any, prefix = 'biz'): string {
 }
 
 // Serve static upload images from persistent DB fallback or local directories
-app.get('/uploads/:filename', (req, res, next) => {
+const handleServeUploadImage = (req: any, res: any) => {
   const rawFilename = req.params.filename;
   if (!rawFilename) return res.status(400).json({ error: 'Filename is required' });
   const filename = path.basename(decodeURIComponent(rawFilename)); // Prevent path traversal attacks
   const db = getDb();
+
+  res.setHeader('Access-Control-Allow-Origin', '*');
 
   // 1. Check in-memory / JSON database backup
   if (db.uploadedImages && db.uploadedImages[filename]) {
@@ -258,8 +260,18 @@ app.get('/uploads/:filename', (req, res, next) => {
     return res.sendFile(distFilePath);
   }
 
+  // 4. Check /tmp/uploads (serverless ephemeral write path)
+  const tmpFilePath = path.join('/tmp', 'uploads', filename);
+  if (fs.existsSync(tmpFilePath)) {
+    res.setHeader('Cache-Control', 'public, max-age=31536000');
+    return res.sendFile(tmpFilePath);
+  }
+
   return res.status(404).json({ error: 'Image file not found' });
-});
+};
+
+app.get('/uploads/:filename', handleServeUploadImage);
+app.get('/api/uploads/:filename', handleServeUploadImage);
 
 // Serve static upload images and assets directly
 app.use('/uploads', express.static(UPLOADS_DIR));
